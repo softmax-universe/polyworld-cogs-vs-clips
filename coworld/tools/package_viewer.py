@@ -8,4 +8,4 @@ if output != root / 'coworld/dist/replay-viewer' and output != root / 'coworld/r
     raise SystemExit('Unexpected viewer output: ' + str(output))
 if output.exists():
     shutil.rmtree(output)
-shutil.copytree(root / 'out/browser', output)
+shutil.copytree(root / ('out/browser-cooperative' if len(sys.argv) > 2 and sys.argv[2] == 'cooperative' else 'out/browser'), output)

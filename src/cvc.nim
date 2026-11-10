@@ -13,7 +13,9 @@ proc main() =
   if settings.help:
     echo "cvc [--bots:FILE:COUNT ...] [--seed:N] [--record:FILE]"
     echo "    [--replay:FILE] [--play:true|false] [--speed:N] [--headless]"
-    echo "--bot is an alias for --bots. Bot counts must total 32."
+    echo "--bot is an alias for --bots. Bot counts must total ", CogCount, "."
+    when defined(cooperative):
+      echo "    [--map-seed:N] independent frozen map seed"
     echo "Values also accept --flag VALUE and --flag=VALUE."
     return
   let
@@ -23,7 +25,7 @@ proc main() =
     sources = settings.sources(BaselineSource)
   var headless = settings.headless
   let session =
-    if replayPath.len > 0: load(replayPath) else: newSession(seed)
+    if replayPath.len > 0: load(replayPath) else: newSession(seed, settings.mapSeed)
   if replayPath.len == 0:
     for player in session.tape.config.players.mitems:
       player.name = "base"

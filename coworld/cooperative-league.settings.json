@@ -1,0 +1,30 @@
+{
+  "round_interval_minutes": 288,
+  "ladder": {
+    "enabled": false,
+    "scheduler": {
+      "strategy": "balanced_rotation",
+      "min_episodes_per_entrant": 8,
+      "insufficient_players": "filler_policy",
+      "matchmaking": "random",
+      "daily_map_seed": true
+    },
+    "fulfillment": {
+      "allowed_failures": 0,
+      "retry_times": 2
+    },
+    "ranking": {
+      "algorithm": "score",
+      "round_scoring_rule": "mean",
+      "standing_aggregation": "latest",
+      "direction": "maximize"
+    },
+    "divisions": []
+  },
+  "counterfactual_eval": {
+    "enabled": false,
+    "auto_on_upload": true,
+    "default_n": 16,
+    "min_history": 8
+  }
+}

@@ -10,8 +10,11 @@ ENV POLYWORLD_DEPS=/src/cvc/.deps
 COPY config.nims config.nims
 COPY src src
 COPY data/maps data/maps
+COPY data/policies data/policies
+COPY training/fourscore/safa_candidate.json training/fourscore/safa_candidate.json
 COPY players players
-RUN nim c -d:release -d:headless -d:coworld -d:tensorBlas --nimcache:/tmp/nimcache -o:/out/game src/cvc.nim
+ARG COOPERATIVE=0
+RUN case "$COOPERATIVE" in 0) mode= ;; 1) mode=-d:cooperative ;; *) exit 1 ;; esac && nim c $mode -d:release -d:headless -d:coworld -d:tensorBlas --nimcache:/tmp/nimcache -o:/out/game src/cvc.nim
 FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends libcurl4t64 libopenblas0-pthread ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=compiler /out/game /usr/local/bin/cvc

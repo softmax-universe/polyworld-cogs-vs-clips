@@ -1,0 +1,248 @@
+{
+  "tags": [
+    "strategy",
+    "basic",
+    "polyworld"
+  ],
+  "game": {
+    "name": "Cogs vs Clips Cooperative PW",
+    "description": "Eight Cogs cooperate against automated Clips for 10,000 ticks. Daily seeded Polyworld maps; mixed BASIC and container policies.",
+    "owner": "treeform",
+    "player_runtime": [
+      "platform-hosted",
+      "game-hosted"
+    ],
+    "runnable": {
+      "type": "game",
+      "image": "{{GAME_IMAGE}}",
+      "source_url": "https://github.com/Metta-AI/polyworld-cogs-vs-clips"
+    },
+    "config_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players",
+        "seed",
+        "max_ticks",
+        "map_seed"
+      ],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "players": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "max_ticks": {
+          "type": "integer",
+          "const": 10000
+        },
+        "map_seed": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        }
+      }
+    },
+    "results_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scores",
+        "ticks",
+        "seed",
+        "outcome"
+      ],
+      "properties": {
+        "scores": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "ticks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "banked_gold": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "returned": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "replay_viewer": {
+      "bundle": "replay-viewer",
+      "replay_compression": "gzip"
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "BASIC and tensor ZIP seats run in-game; container seats use coworld.player.v1 at /player?slot=N&token=TOKEN. Eight Cogs share territory score. Ordinary Machina observations use the reconstructed polyworld-machina-74/v1 contract; qualify each imported policy."
+      },
+      "global": {
+        "type": "text",
+        "value": "GET /client/global is a static status page. /global reports status and answers Ping. Container players connect to /player. Replay uses the cooperative viewer."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "# Cooperative Cogs vs Clips\n\nEight Cogs cooperate against automated Clips for 10,000 ticks. Daily seeded Polyworld maps; mixed BASIC and container policies.\n\nScores are mean held junctions across 10,000 ticks. The league planner freezes map_seed as the round creation date in UTC YYYYMMDD. Simulation seed is separate. Eight submitted Cogs share the same team score.\n\nContainer startup allows 300 seconds, then each action allows 30 seconds. Actions: noop, move_north, move_south, move_west, move_east. BASIC uses 0 rest, 1 north, 2 east, 3 south, 4 west. Both receive the same pre-tick state.\n\nThe map generator and sparse observations are Polyworld reconstructions, not exact MettaGrid parity. Qualify old policies before enrollment. See docs/cooperative-migration.md in the source repository.\n"
+      }
+    },
+    "version": "0.1.0"
+  },
+  "player": [
+    {
+      "id": "baseline",
+      "name": "Baseline",
+      "type": "player",
+      "file": "players/base.bas",
+      "description": "Observation-limited Cogs vs Clips BASIC baseline."
+    }
+  ],
+  "variants": [
+    {
+      "id": "machina-daily",
+      "name": "Daily cooperative Machina",
+      "description": "Daily map_seed is frozen by the league planner. This manifest default is a reproducible preview fixture.",
+      "game_config": {
+        "players": [
+          {
+            "name": "Cog 0"
+          },
+          {
+            "name": "Cog 1"
+          },
+          {
+            "name": "Cog 2"
+          },
+          {
+            "name": "Cog 3"
+          },
+          {
+            "name": "Cog 4"
+          },
+          {
+            "name": "Cog 5"
+          },
+          {
+            "name": "Cog 6"
+          },
+          {
+            "name": "Cog 7"
+          }
+        ],
+        "seed": 1,
+        "map_seed": 20261110,
+        "max_ticks": 10000
+      }
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "players": [
+        {
+          "name": "Cog 0"
+        },
+        {
+          "name": "Cog 1"
+        },
+        {
+          "name": "Cog 2"
+        },
+        {
+          "name": "Cog 3"
+        },
+        {
+          "name": "Cog 4"
+        },
+        {
+          "name": "Cog 5"
+        },
+        {
+          "name": "Cog 6"
+        },
+        {
+          "name": "Cog 7"
+        }
+      ],
+      "seed": 1,
+      "map_seed": 20261110,
+      "max_ticks": 10000
+    },
+    "players": [
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      }
+    ]
+  }
+}

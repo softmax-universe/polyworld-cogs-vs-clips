@@ -711,7 +711,7 @@ proc renderFrame(client: Client) {.measure.} =
 proc runClient*(session: Session, sources: array[CogCount, string],
     recordPath: string, paused = false, speed = 1'i32) =
   ## Opens the native or browser client with identical simulation code.
-  let window = newWindow("FourScore", ivec2(1440, 960))
+  let window = newWindow((when defined(cooperative): "Cooperative Cogs vs Clips" else: "FourScore"), ivec2(1440, 960))
   window.makeContextCurrent()
   loadExtensions()
   let client = Client(

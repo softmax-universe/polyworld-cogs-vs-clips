@@ -6,7 +6,13 @@ import
 when defined(coworld):
   import polyworld/coworld
 
-const BaselineSource* = staticRead("../../players/base.bas")
+const
+  BaselineSource* = staticRead("../../players/base.bas")
+  AllBotSeats* = block:
+    var flags: array[CogCount, bool]
+    for flag in flags.mitems:
+      flag = true
+    flags
 
 type
   ObservationHost = ref object
@@ -37,6 +43,7 @@ type
     neuralRandom: Rng
     neuralStarted: bool
   Bots* = ref object
+    active: array[CogCount, bool]
     brains: array[CogCount, Brain]
     observationHost: ObservationHost
 
@@ -159,13 +166,7 @@ proc baseline(brain: Brain): Action {.measure.} =
         station.role == desired:
         consider(station.tile)
     if target < 0:
-      let
-        hub = cog.team.home
-        locations = [tileAt(hub.x + 1, hub.y + 4),
-          tileAt(hub.x - 3, hub.y + 4),
-          tileAt(hub.x + 3, hub.y + 4),
-          tileAt(hub.x - 1, hub.y + 4)]
-      consider(locations[[Miner, Aligner, Scout, Scrambler].find(desired)])
+      consider(cog.team.gearTile(desired))
   elif cog.carried >= cog.role.capacity or
     (cog.role notin {Miner, Scout} and cog.carried > 0):
       consider(cog.team.home)
@@ -361,9 +362,10 @@ proc host(brain: Brain): Host =
   discard result.addFunction("obs", 2, obsProc, 1)
   discard result.addFunction("observe", 0, observeProc, ObservationTokens * 3)
 
-proc newBots*(sources: array[CogCount, string]): Bots =
+proc newBots*(sources: array[CogCount, string], active = AllBotSeats): Bots =
   ## Compiles each slot policy and creates independent runtimes.
   new result
+  result.active = active
   result.observationHost = ObservationHost()
   var limits = defaultLimits()
   limits.maxInstructions = 250_000
@@ -375,9 +377,11 @@ proc newBots*(sources: array[CogCount, string]): Bots =
   let schema = Brain(slot: 0).host()
   try:
     for i in 0 ..< CogCount:
+      if not active[i]:
+        continue
       var policy: Policy
       for j in 0 ..< i:
-        if sources[j] == sources[i]:
+        if active[j] and sources[j] == sources[i]:
           policy = result.brains[j].policy
           break
       if policy == nil:
@@ -414,6 +418,8 @@ proc decide*(bots: Bots, world: var World): Actions {.measure.} =
   ## Runs all policies against the same pre-tick state.
   bots.observationHost.prepared = false
   for i, brain in bots.brains:
+    if not bots.active[i]:
+      continue
     brain.world = addr world
     brain.observationReady = false
     brain.fieldsReady = false

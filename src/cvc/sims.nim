@@ -33,7 +33,7 @@ const Distances = block:
 proc owner(strengths: array[Owner, int32]): Owner =
   ## Selects the strongest faction, leaving tied influence neutral.
   var best = 0'i32
-  for team in Teams:
+  for team in Factions:
     if strengths[team] > best:
       best = strengths[team]
       result = team
@@ -225,6 +225,60 @@ proc act(world: var World, slot: int, action: Action) {.measure.} =
     world.cogs[slot].tile = tile
     world.cogs[slot].feedback = Moved
 
+when defined(cooperative):
+  proc frontier(world: World, ship: Station): array[MaxStations, bool] =
+    ## Follows one ship's lane through junctions within expansion range.
+    for i, station in world.stations:
+      result[i] = station.kind == Ship and station.lane == ship.lane
+    var changed = true
+    while changed:
+      changed = false
+      for i, station in world.stations:
+        if result[i] or station.kind != Junction or
+          station.owner != Blue or station.lane != ship.lane:
+            continue
+        for j, other in world.stations:
+          if result[j] and
+            other.tile.distance2(station.tile) <= AlignRadius * AlignRadius:
+              result[i] = true
+              changed = true
+              break
+
+  proc spread*(world: var World) =
+    ## Expands each ship's connected Blue frontier at fixed intervals.
+    if world.tick < ClipsStart or
+      (world.tick - ClipsStart) mod ClipsPeriod != 0:
+        return
+    for ship in world.stations:
+      if ship.kind != Ship:
+        continue
+      for targetOwner in [Neutral, Red]:
+        let reached = world.frontier(ship)
+        var
+          target = -1
+          distance = int32.high
+        for i, station in world.stations:
+          if station.kind != Junction or station.owner != targetOwner:
+            continue
+          var reachable = false
+          for j, other in world.stations:
+            if reached[j] and
+              other.tile.distance2(station.tile) <= AlignRadius * AlignRadius:
+                reachable = true
+                break
+          if reachable:
+            let candidate = ship.tile.distance2(station.tile)
+            if candidate < distance:
+              target = i
+              distance = candidate
+        if target >= 0:
+          world.stations[target].owner =
+            if targetOwner == Neutral: Blue else: Neutral
+          world.stations[target].lane =
+            if targetOwner == Neutral: ship.lane else: 0
+          world.reconnect()
+
+
 proc tick*(world: var World, actions: Actions) {.measure.} =
   ## Applies actions, team territory effects, and integer scoring.
   if world.tick >= MaxTicks:
@@ -236,6 +290,8 @@ proc tick*(world: var World, actions: Actions) {.measure.} =
     swap(order[i], order[world.rng.below(int32(i + 1))])
   for slot in order:
     world.act(slot, actions[slot])
+  when defined(cooperative):
+    world.spread()
   let
     solar = if world.tick mod DayLength < DayLength div 2: 3 else: 1
     owners = world.territories()
@@ -264,6 +320,9 @@ proc stateHash*(world: World): uint64 =
   ## Hashes all authoritative state without native layout dependence.
   uint64(hashy(world))
 
-proc initWorld*(seed: int32): World =
-  ## Initializes the sole supported scenario.
-  generate(seed)
+proc initWorld*(seed: int32, mapSeed: int32 = 1): World =
+  ## Initializes the build's rules with independently frozen map randomness.
+  when defined(cooperative):
+    generate(seed, mapSeed)
+  else:
+    generate(seed)

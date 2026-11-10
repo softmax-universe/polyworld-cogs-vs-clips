@@ -38,7 +38,7 @@ window.cvcReplayFrame=()=>{
 post({type:'loading'});
 var Module={canvas,
  locateFile(path){return path+"?v=__BUILD_ID__"},
- arguments:replayUrl?['--replay','/match.replay']:['--seed',query.get('seed')||'1'],
+ arguments:replayUrl?['--replay','/match.replay']:['--seed',query.get('seed')||'1',...__MAP_ARGUMENTS__],
  print(message){console.log(message);if(String(message).startsWith('CVC:'))cvcReplayError(message)},
  printErr:console.error,
  onAbort:window.cvcReplayError,
