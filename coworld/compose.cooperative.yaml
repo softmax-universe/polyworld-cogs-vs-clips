@@ -1,0 +1,9 @@
+services:
+  game:
+    image: polyworld-cogs-vs-clips-cooperative:latest
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: coworld/Dockerfile
+      args:
+        COOPERATIVE: "1"

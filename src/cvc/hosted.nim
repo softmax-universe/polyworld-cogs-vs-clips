@@ -1,23 +1,40 @@
 import
+  std/[json, os],
   polyworld/coworld,
-  sims, replays, bots
+  sims, replays, bots, containerplayers
 
 proc runHosted*() =
   ## Runs staged BASIC seats and publishes the standard CoWorld artifacts.
-  let options = coworldOptions(CogCount)
+  let options = coworldOptions(CogCount, mixedPlayers = true)
   if options.maximumTicks != MaxTicks:
-    raise newException(CoworldError, "FourScore requires 10,000 ticks")
+    raise newException(CoworldError, "Cogs vs Clips requires 10,000 ticks")
   var sources: array[CogCount, string]
-  for slot, group in options.botGroups:
+  var active: array[CogCount, bool]
+  for slot, seat in seats.seats:
+    if seat.kind != policy:
+      continue
+    active[slot] = true
     try:
-      sources[slot] = readPlayerSource(group.path)
+      sources[slot] = readPlayerSource(localPath(seat.fileUri))
     except CoworldError as error:
       rejectPlayer(slot, error.msg)
+  var mapSeed = 1'i32
+  when defined(cooperative):
+    let config = parseJson(readLocal(getEnv("COGAME_CONFIG_URI")))
+    if not config.hasKey("map_seed") or config["map_seed"].kind != JInt or
+      config["map_seed"].getBiggestInt notin int64(int32.low) .. int64(int32.high):
+        raise newException(CoworldError, "Cooperative episodes require a frozen int32 map_seed")
+    mapSeed = int32(config["map_seed"].getBiggestInt)
   let
-    session = newSession(options.seed)
-    policies = newBots(sources)
+    session = newSession(options.seed, mapSeed)
+    policies = newBots(sources, active)
+  session.tape.config.players = coworld.config.players
+  var remote = connectPlayers()
   while session.world.tick < MaxTicks:
-    session.advance(policies.decide(session.world))
+    var actions = policies.decide(session.world)
+    remote.decide(session.world, actions)
+    session.advance(actions)
+  remote.finish(session.world)
   session.save(options.recordPath)
   var scores: seq[int]
   for cog in session.world.cogs:

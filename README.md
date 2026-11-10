@@ -1,9 +1,18 @@
 # Poly World CVC
 
-A standalone Nim Cogs vs Clips game with a fixed Machina 1 ruleset, eight
-cooperative Cogs, seeded 88 by 88 maps, and 10,000-tick matches. The simulation
+A standalone Nim FourScore game with four teams of eight Cogs, a fixed
+120 by 120 map, and 10,000-tick matches. The simulation
 uses integer state and Poly World action tapes. Native and browser clients
 share the same simulation and copied CoGames 2D sprites.
+
+The cooperative build adds eight Cogs against automated Clips, daily seeded maps,
+and mixed BASIC/container seats. See [migration preparation](docs/cooperative-migration.md)
+for builds, policy qualification, league settings, and release gates.
+The existing [Cogs vs Clips Coworld](https://github.com/softmax-universe/coworld-cogs-vs-clips)
+consumes this repository as a pinned source dependency. That repository owns the
+shared manifest, league variants, release packaging, and legacy MettaGrid runtime.
+This repository owns Polyworld rules, policy adaptation, native builds, and viewers.
+It is not deployed as the official league.
 
 ## Run
 
@@ -33,7 +42,8 @@ repositories alone. Emscripten is required for the browser build:
 python3 -m http.server 8128 --bind 127.0.0.1 --directory out/browser
 ```
 
-Open `http://127.0.0.1:8128`. Add `?seed=42` to select a map.
+Open `http://127.0.0.1:8128`. Add `?seed=42` to change simulation randomness.
+The current map geometry stays fixed.
 
 ## Play and inspect
 
@@ -51,7 +61,7 @@ and playback speed never change simulation results.
 
 ## Policies
 
-`--bot players/base.bas` supplies a BASIC program to eight independent policy
+`--bot players/base.bas` supplies a BASIC program to 32 independent policy
 runtimes. Programs can use `self(0)` to specialize by seat. See
 [the policy interface](docs/policies.md) for observation and action functions.
 The bundled baseline is intentionally simple and uses remembered local vision.

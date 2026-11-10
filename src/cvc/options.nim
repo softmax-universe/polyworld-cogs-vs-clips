@@ -6,7 +6,7 @@ from polyworld/cli import BotGroup, addBotSpec, botCount, botSources
 
 type
   Options* = object
-    seed*: int32
+    seed*, mapSeed*: int32
     recordPath*, replayPath*: string
     groups*: seq[BotGroup]
     headless*, help*, paused*: bool
@@ -25,6 +25,7 @@ proc number(value, flag: string): int32 =
 proc parseOptions*(arguments: seq[string]): Options =
   ## Accepts Poly World bot groups and space, colon, or equals flag values.
   result.seed = 1
+  result.mapSeed = 1
   result.speed = 1
   var i = 0
   while i < arguments.len:
@@ -43,7 +44,7 @@ proc parseOptions*(arguments: seq[string]): Options =
         result.help = true
       inc i
       continue
-    if flag notin ["--seed", "--record", "--replay", "--bot", "--bots",
+    if flag notin ["--seed", "--map-seed", "--record", "--replay", "--bot", "--bots",
       "--play", "--speed"]:
         fail("unknown argument: " & argument)
     var value: string
@@ -59,6 +60,11 @@ proc parseOptions*(arguments: seq[string]): Options =
     case flag
     of "--seed":
       result.seed = number(value, flag)
+    of "--map-seed":
+      when defined(cooperative):
+        result.mapSeed = number(value, flag)
+      else:
+        fail("--map-seed requires a cooperative build")
     of "--record":
       result.recordPath = value
     of "--replay":
@@ -88,7 +94,7 @@ proc parseOptions*(arguments: seq[string]): Options =
     fail("--bots must fill all " & $CogCount & " Cog slots")
 
 proc sources*(options: Options, fallback: string): array[CogCount, string] =
-  ## Expands shared Poly World path:count bot groups into the 32 slots.
+  ## Expands shared Poly World path:count bot groups into the build's Cog slots.
   if options.groups.len == 0:
     for source in result.mitems:
       source = fallback

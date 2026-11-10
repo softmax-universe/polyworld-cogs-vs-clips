@@ -21,6 +21,7 @@ type
     owners: array[TileCount, Owner]
     known: array[TileCount, bool]
   NeuralGrid* = array[NeuralInputs, float32]
+  LegacyObservation* = array[500, array[3, uint8]]
 
 proc neuralRole*(slot, requested: int): int =
   ## Resolves one fixed role or the explicit mixed-role lineup.
@@ -33,7 +34,8 @@ proc prepare(view: var NeuralView, world: World) =
   ## Resets episode memory and caches only within the current tick.
   if not view.initialized or world.tick < view.tick:
     view.initialized = true
-    let initial = initWorld(world.seed)
+    let mapSeed = (when defined(cooperative): world.mapSeed else: 1'i32)
+    let initial = initWorld(world.seed, mapSeed)
     for slot, cog in initial.cogs:
       view.spawn[slot] = cog.tile
       view.previous[slot] = cog.tile
@@ -59,14 +61,26 @@ proc relative(owner, team: Owner): int =
 
 proc neuralGrid*(view: var NeuralView, world: World, slot, requested: int,
     output: var NeuralGrid,
-    assignments: ptr array[CogCount, int32] = nil) =
+    assignments: ptr array[CogCount, int32] = nil,
+    tokens: ptr LegacyObservation = nil) =
   ## Builds the reconstructed 134-feature candidate from visible sim state.
   assert slot in 0 ..< CogCount and requested in 0 .. 10
   view.prepare(world)
   reset(output)
+  var tokenCount = 0
+  if tokens != nil:
+    for token in tokens[].mitems:
+      token = [255'u8, 255'u8, 255'u8]
   let
     cog = world.cogs[slot]
     role = neuralRole(slot, requested)
+  template rawToken(location, feature, value: untyped) =
+    block:
+      if tokens != nil and tokenCount < tokens[].len:
+        let rawCell = int(location)
+        let packed = (if rawCell == 254: 254 else: (rawCell div 13) * 16 + rawCell mod 13)
+        tokens[][tokenCount] = [uint8(packed), uint8(feature), uint8(value)]
+        inc tokenCount
   template emit(location, feature, value: untyped) =
     block:
       let
@@ -79,7 +93,24 @@ proc neuralGrid*(view: var NeuralView, world: World, slot, requested: int,
           elif field == 129: 3.0'f
           elif field in 130 .. 133: 9.0'f
           else: 255.0'f
-        cell = int(location)
+        rawCell = int(location)
+        cell = (if rawCell == 254: 168 else: rawCell)
+      when defined(cooperative):
+        var wireField = field
+        var wireValue = int(value)
+        case field
+        of 0 .. 35: discard
+        of 56 .. 67: wireField -= 20
+        of 78 .. 89: wireField -= 30
+        of 100 .. 107: wireField -= 40
+        of 128 .. 133: wireField -= 60
+        else: wireField = -1 # Reward-role features are absent from ordinary Machina.
+        if field == 6 and wireValue < 8:
+          wireValue = [4, -1, 5, -1, 6, -1, 7, -1][wireValue]
+        if wireField >= 0 and wireValue >= 0:
+          rawToken(rawCell, wireField, wireValue)
+      else:
+        rawToken(rawCell, field, value)
       output[field * 169 + cell] += float32(value) / (norm + 0.000001'f)
   template inventory(location, feature, amount: untyped) =
     block:
@@ -88,26 +119,26 @@ proc neuralGrid*(view: var NeuralView, world: World, slot, requested: int,
         emit(location, feature, count and 255)
         if count >= 256:
           emit(location, feature + 1, (count shr 8) and 255)
-  emit(168, 1, min(255, world.tick * 256 div MaxTicks))
+  emit(254, 1, min(255, world.tick * 256 div MaxTicks))
   let last = ActionsToLegacy[ord(view.last[slot])]
-  emit(168, 2, last)
+  emit(254, 2, last)
   if view.observed[slot] != world.tick:
     view.moved[slot] = cog.tile != view.previous[slot]
     view.previous[slot] = cog.tile
     view.observed[slot] = world.tick
-  emit(168, 128, int(view.moved[slot]))
+  emit(254, 128, int(view.moved[slot]))
   let
     dx = cog.tile.x - view.spawn[slot].x
     dy = cog.tile.y - view.spawn[slot].y
-  if dx > 0: emit(168, 7, dx)
-  if dx < 0: emit(168, 8, -dx)
-  if dy < 0: emit(168, 9, -dy)
-  if dy > 0: emit(168, 10, dy)
+  if dx > 0: emit(254, 7, dx)
+  if dx < 0: emit(254, 8, -dx)
+  if dy < 0: emit(254, 9, -dy)
+  if dy > 0: emit(254, 10, dy)
   for element in Element:
-    inventory(168, 100 + [2, 0, 4, 6][ord(element)],
+    inventory(254, 100 + [2, 0, 4, 6][ord(element)],
       world.banks[cog.team][element])
-  emit(168, 108 + role * 2, 1)
-  emit(168, 129, relative(view.owner(world, cog.tile), cog.team))
+  emit(254, 108 + role * 2, 1)
+  emit(254, 129, relative(view.owner(world, cog.tile), cog.team))
   for y in -6'i32 .. 6:
     for x in -6'i32 .. 6:
       let
@@ -163,6 +194,8 @@ proc neuralGrid*(view: var NeuralView, world: World, slot, requested: int,
           emit(cell, 6, 13)
         of Ship:
           emit(cell, 6, 18)
+          when defined(cooperative):
+            rawToken(cell, 6, int(station.lane) - 1)
         of Extractor:
           emit(cell, 6, ResourceTags[ord(station.element)])
           inventory(cell, ResourceFeatures[ord(station.element)], station.stock)

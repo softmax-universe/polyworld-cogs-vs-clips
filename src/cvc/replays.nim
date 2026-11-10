@@ -3,18 +3,22 @@ import
   sims, profiles
 
 const
-  ReplayGame* = "four_score"
+  ReplayGame* = (when defined(cooperative): "cogs_vs_clips" else: "four_score")
   TapeVersion* = 1'u16
   ContentHash* = uint64(hashy(
-    staticRead("common.nim") & staticRead("maps.nim") & staticRead("../../data/maps/fourscore.txt") & staticRead("sims.nim")
+    staticRead("common.nim") & staticRead("maps.nim") &
+    (when defined(cooperative): staticRead("machina.nim") else: staticRead("../../data/maps/fourscore.txt")) & staticRead("sims.nim")
   ))
   # The pre-optimization build produces identical authoritative tick hashes.
   PreviousContentHash* = 1590253142'u64
+  FourScoreReleaseHash* = 1461522424'u64
   CheckpointPeriod* = 500
 
 type
   Setup* = object
     seed*: int32
+    when defined(cooperative):
+      mapSeed*: int32
     maximumTicks*: uint32
     mapHash*: uint64
     contentHash*: uint64
@@ -31,10 +35,10 @@ type
     checkpoints*: seq[Checkpoint]
     error*: string
 
-proc newSession*(seed: int32): Session =
+proc newSession*(seed: int32, mapSeed: int32 = 1): Session =
   ## Starts a live match and its bounded action tape.
   new result
-  result.world = initWorld(seed)
+  result.world = initWorld(seed, mapSeed)
   result.tape = initActionTape[Setup, Frame](
     Setup(
       seed: seed,
@@ -45,6 +49,8 @@ proc newSession*(seed: int32): Session =
     TapeVersion,
     GameVersion
   )
+  when defined(cooperative):
+    result.tape.header.setup.mapSeed = mapSeed
   result.tape.config = GameConfig(
     seed: seed,
     maxTicks: MaxTicks,
@@ -57,9 +63,11 @@ proc validate*(tape: Replay) =
   if tape.header.formatVersion != TapeVersion or
     tape.header.gameVersion != GameVersion:
       fail("unsupported CVC replay version")
-  if tape.header.setup.maximumTicks != uint32(MaxTicks) or
-    tape.header.setup.contentHash notin [ContentHash, PreviousContentHash]:
-      fail("replay rules do not match this client")
+  let acceptedContent =
+    when defined(cooperative): tape.header.setup.contentHash == ContentHash
+    else: tape.header.setup.contentHash in [ContentHash, PreviousContentHash, FourScoreReleaseHash]
+  if tape.header.setup.maximumTicks != uint32(MaxTicks) or not acceptedContent:
+    fail("replay rules do not match this client")
   if tape.hashes.len > int(MaxTicks) or
     tape.actions.len != tape.hashes.len:
       fail("replay must contain one action frame and hash per tick")
@@ -72,13 +80,15 @@ proc validate*(tape: Replay) =
     for action in frame.actions:
       if ord(action) < ord(low(Action)) or ord(action) > ord(high(Action)):
         fail("replay contains an invalid action")
-  if initWorld(tape.header.setup.seed).stateHash != tape.header.setup.mapHash:
+  let mapSeed = (when defined(cooperative): tape.header.setup.mapSeed else: 1'i32)
+  if initWorld(tape.header.setup.seed, mapSeed).stateHash != tape.header.setup.mapHash:
     fail("replay map fingerprint does not match")
 
 proc fromReplay*(tape: Replay): Session =
   ## Creates read-only playback after complete structural validation.
   tape.validate()
-  result = newSession(tape.header.setup.seed)
+  let mapSeed = (when defined(cooperative): tape.header.setup.mapSeed else: 1'i32)
+  result = newSession(tape.header.setup.seed, mapSeed)
   result.tape = tape
   result.playback = true
 

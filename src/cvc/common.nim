@@ -1,10 +1,10 @@
 import polyworld/rngs
 
 const
-  Width* = 120
-  Height* = 120
+  Width* = (when defined(cooperative): 88 else: 120)
+  Height* = Width
   TileCount* = Width * Height
-  TeamCount* = 4
+  TeamCount* = (when defined(cooperative): 1 else: 4)
   TeamSize* = 8
   CogCount* = TeamCount * TeamSize
   MaxTicks* = 10_000'i32
@@ -21,7 +21,7 @@ const
   AlignRadius* = 15'i32
   HubAlignRadius* = 25'i32
   ViewRadius* = 6'i32
-  GameVersion* = 3'u16
+  GameVersion* = (when defined(cooperative): 4'u16 else: 3'u16)
 
 type
   CvcError* = object of CatchableError
@@ -62,6 +62,8 @@ type
     feedback*: Feedback
   World* = object
     seed*: int32
+    when defined(cooperative):
+      mapSeed*: int32
     tick*: int32
     rng*: Rng
     tiles*: array[TileCount, Tile]
@@ -72,10 +74,21 @@ type
     scores*: array[Owner, int64]
   Actions* = array[CogCount, Action]
 
+when defined(cooperative):
+  const
+    Teams* = [Red]
+    Factions* = [Red, Blue]
+    Hubs* = [44 + 44 * Width]
+    ClipsStart* = 100'i32
+    ClipsPeriod* = 200'i32
+else:
+  const
+    Teams* = [Red, Blue, Green, Gold]
+    Factions* = Teams
+    Hubs* = [29 + 29 * Width, 89 + 29 * Width,
+      29 + 89 * Width, 89 + 89 * Width]
+
 const
-  Teams* = [Red, Blue, Green, Gold]
-  Hubs* = [29 + 29 * Width, 89 + 29 * Width,
-    29 + 89 * Width, 89 + 89 * Width]
   GearCosts*: array[Role, array[Element, int32]] = [
     [0'i32, 0, 0, 0], [1'i32, 1, 3, 1], [3'i32, 1, 1, 1],
     [1'i32, 3, 1, 1], [1'i32, 1, 1, 3]
@@ -143,6 +156,41 @@ proc visible*(world: World, slot: int, tile: int32): bool =
 
 proc home*(team: Owner): int32 =
   ## Returns the fixed corner hub for a playable team.
-  if team == Neutral:
+  if team notin Teams:
     return -1
   int32(Hubs[ord(team) - 1])
+
+proc addStation*(world: var World, station: Station) =
+  ## Adds one station with a stable index and clears its access tiles.
+  if world.stations.len >= MaxStations:
+    fail("station capacity exceeded")
+  if station.tile notin 0 ..< TileCount:
+    fail("station tile is outside the map")
+  if world.tiles[station.tile].station >= 0:
+    fail("two stations occupy the same tile")
+  world.tiles[station.tile].wall = false
+  world.tiles[station.tile].station = int16(world.stations.len)
+  world.stations.add station
+  for direction in North .. West:
+    let tile = station.tile.neighbor(direction)
+    if tile >= 0:
+      world.tiles[tile].wall = false
+
+
+proc gearTile*(team: Owner, role: Role): int32 =
+  ## Returns the known compound layout shared by map generation and the baseline.
+  let hub = team.home
+  when defined(cooperative):
+    case role
+    of Miner: tileAt(hub.x - 7, hub.y)
+    of Aligner: tileAt(hub.x, hub.y - 7)
+    of Scrambler: tileAt(hub.x + 7, hub.y)
+    of Scout: tileAt(hub.x, hub.y + 7)
+    of Ungeared: hub
+  else:
+    case role
+    of Miner: tileAt(hub.x + 1, hub.y + 4)
+    of Aligner: tileAt(hub.x - 3, hub.y + 4)
+    of Scrambler: tileAt(hub.x - 1, hub.y + 4)
+    of Scout: tileAt(hub.x + 3, hub.y + 4)
+    of Ungeared: hub
