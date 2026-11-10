@@ -1,4 +1,5 @@
 import
+  std/algorithm,
   bassy,
   polyworld/[policyhosts, policies, rngs, tensors],
   sims, profiles, routes, yields, observations, neuralviews
@@ -37,6 +38,7 @@ type
     neuralRandom: Rng
     neuralStarted: bool
   Bots* = ref object
+    enabled: array[CogCount, bool]
     brains: array[CogCount, Brain]
     observationHost: ObservationHost
 
@@ -361,9 +363,16 @@ proc host(brain: Brain): Host =
   discard result.addFunction("obs", 2, obsProc, 1)
   discard result.addFunction("observe", 0, observeProc, ObservationTokens * 3)
 
-proc newBots*(sources: array[CogCount, string]): Bots =
+const AllBots* = block:
+  var enabled: array[CogCount, bool]
+  enabled.fill(true)
+  enabled
+
+proc newBots*(sources: array[CogCount, string],
+    enabled = AllBots): Bots =
   ## Compiles each slot policy and creates independent runtimes.
   new result
+  result.enabled = enabled
   result.observationHost = ObservationHost()
   var limits = defaultLimits()
   limits.maxInstructions = 250_000
@@ -375,9 +384,11 @@ proc newBots*(sources: array[CogCount, string]): Bots =
   let schema = Brain(slot: 0).host()
   try:
     for i in 0 ..< CogCount:
+      if not enabled[i]:
+        continue
       var policy: Policy
       for j in 0 ..< i:
-        if sources[j] == sources[i]:
+        if enabled[j] and sources[j] == sources[i]:
           policy = result.brains[j].policy
           break
       if policy == nil:
@@ -414,6 +425,8 @@ proc decide*(bots: Bots, world: var World): Actions {.measure.} =
   ## Runs all policies against the same pre-tick state.
   bots.observationHost.prepared = false
   for i, brain in bots.brains:
+    if not bots.enabled[i]:
+      continue
     brain.world = addr world
     brain.observationReady = false
     brain.fieldsReady = false

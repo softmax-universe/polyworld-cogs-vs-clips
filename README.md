@@ -56,6 +56,9 @@ runtimes. Programs can use `self(0)` to specialize by seat. See
 [the policy interface](docs/policies.md) for observation and action functions.
 The bundled baseline is intentionally simple and uses remembered local vision.
 
+Docker players can share hosted matches with BASIC and tensor players. See
+[the Docker protocol and release gate](docs/docker-players.md).
+
 ## PufferLib training
 
 Training runs the compiled Nim simulation directly and uses PyTorch for neural

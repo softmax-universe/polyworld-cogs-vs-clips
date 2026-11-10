@@ -10,6 +10,7 @@ ENV POLYWORLD_DEPS=/src/cvc/.deps
 COPY config.nims config.nims
 COPY src src
 COPY data/maps data/maps
+COPY data/protocols data/protocols
 COPY players players
 RUN nim c -d:release -d:headless -d:coworld -d:tensorBlas --nimcache:/tmp/nimcache -o:/out/game src/cvc.nim
 FROM ubuntu:24.04
