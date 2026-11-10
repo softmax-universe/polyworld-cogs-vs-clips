@@ -73,7 +73,7 @@ type
     done: bool = true
     scores: array[CogCount, float64]
 
-const PolicyMetadata = staticRead("../../data/protocols/four_score.json")
+const PolicyMetadata = staticRead("../../data/protocols/machina_compat.json")
 
 var
   connections: array[CogCount, Connection]

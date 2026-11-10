@@ -7,10 +7,9 @@ const
   LegacyToAction* = [Rest, North, South, West, East]
   ActionToLegacy = [0, 1, 4, 2, 3]
   ResourceFeatures = [14, 12, 16, 18]
-  ResourceTags = [11, 16, 12, 19]
+  ResourceTags = [10, 15, 11, 19]
   RoleFeatures = [30, 26, 28, 32]
-  RoleTags = [15, 10, 18, 17]
-  NetworkTags = [0, 3, 1, 2, 4]
+  RoleTags = [14, 9, 17, 16]
 
 type
   ContainerObservation* = array[ContainerTokens, array[3, uint8]]
@@ -91,9 +90,9 @@ proc observe*(view: var ContainerView, world: World, slot: int): ContainerObserv
             occupant = i
         if occupant >= 0:
           let other = world.cogs[occupant]
-          emit(location, 6, 9)
-          emit(location, 6, 4 + NetworkTags[ord(other.team)])
-          emit(location, 0, ord(other.team) - 1)
+          emit(location, 6, 8)
+          emit(location, 6, (if other.team == cog.team: 7 else: 6))
+          emit(location, 0, (if other.team == cog.team: 0 else: 1))
           emit(location, 11, occupant)
           inventory(location, 20, other.hp)
           inventory(location, 22, other.hearts)
@@ -108,20 +107,21 @@ proc observe*(view: var ContainerView, world: World, slot: int): ContainerObserv
         elif world.tiles[tile].station >= 0:
           let station = world.stations[world.tiles[tile].station]
           if station.owner != Neutral:
-            emit(location, 6, 4 + NetworkTags[ord(station.owner)])
+            emit(location, 6, (if station.owner == cog.team: 7 else: 6))
             if station.kind in {Hub, Junction}:
-              emit(location, 6, NetworkTags[ord(station.owner)])
+              emit(location, 6, (if station.owner == cog.team: 5 else: 4))
           if station.kind in {Hub, Junction} and station.owner != Neutral:
             for element in Element:
               inventory(location, ResourceFeatures[ord(element)], world.banks[station.owner][element])
           case station.kind
           of Hub:
-            emit(location, 6, 13)
+            emit(location, 6, 12)
+            inventory(location, 22, world.hearts[station.owner])
             for element in Element:
               emit(location, 36 + [1, 0, 2, 3][ord(element)], HeartCost)
             emit(location, 53, 1)
           of Junction:
-            emit(location, 6, 14)
+            emit(location, 6, 13)
           of Extractor:
             emit(location, 6, ResourceTags[ord(station.element)])
             inventory(location, ResourceFeatures[ord(station.element)], station.stock)

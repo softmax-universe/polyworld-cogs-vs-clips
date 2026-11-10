@@ -372,15 +372,14 @@
     }
   ],
   "tags": [
-    "!reserved:tag_id_0",
-    "net:cogs_blue",
-    "net:cogs_green",
-    "net:cogs_red",
-    "net:cogs_yellow",
-    "team:cogs_blue",
-    "team:cogs_green",
-    "team:cogs_red",
-    "team:cogs_yellow",
+    "clips:ship:0",
+    "clips:ship:1",
+    "clips:ship:2",
+    "clips:ship:3",
+    "net:clips",
+    "net:cogs",
+    "team:clips",
+    "team:cogs",
     "type:agent",
     "type:aligner",
     "type:carbon_extractor",
@@ -391,6 +390,7 @@
     "type:oxygen_extractor",
     "type:scout",
     "type:scrambler",
+    "type:ship",
     "type:silicon_extractor",
     "type:wall"
   ],
@@ -401,15 +401,7 @@
     "move_west",
     "move_east"
   ],
-  "vibe_action_names": [
-    "change_vibe_default",
-    "change_vibe_heart",
-    "change_vibe_gear",
-    "change_vibe_scrambler",
-    "change_vibe_aligner",
-    "change_vibe_miner",
-    "change_vibe_scout"
-  ],
+  "vibe_action_names": [],
   "move_energy_cost": 4,
   "observation_kind": "token",
   "observation_dtype": "uint8",

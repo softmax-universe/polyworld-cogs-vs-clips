@@ -34,17 +34,23 @@ remain runner-owned; BASIC logs remain game-owned. Human control is not implemen
 
 ## Observation projection
 
-`data/protocols/four_score.json` records the named 74-feature interface from
+`data/protocols/machina_compat.json` records the named 74-feature interface from
 `coworld-cogs-vs-clips` revision `d559d2ae21aa56633941700cfd135ecff3416c1d`,
-using MettaGrid 0.26.21 and `make_env("four_score", num_agents=32,
+using MettaGrid 0.26.21 and `make_env("machina_1", num_agents=8,
 max_steps=10000, seed=1)`. `PolicyEnvInterface.from_mg_cfg` generated the metadata.
-PW disables vibe actions and talk. It retains the original five movement actions.
+PW sets `num_agents` to 32 and disables vibe actions and talk. It retains
+the original five movement actions.
 
 `mettagridview.nim` projects PW's visible state into that interface. Globals use
 location 254; padding uses 255. Spatial tokens use a 13×13 egocentric window,
 with row in the upper nibble and column in the lower nibble. Globals precede
 nearby objects; tokens beyond 500 are truncated. Metadata defines feature and
-tag names; consumers must not assume the older Machina 1 tag ordering.
+tag names. Each observer sees its own team as `team:cogs` / `net:cogs`
+and every opposing team as `team:clips` / `net:clips`. Agent groups similarly
+encode friendly as 0 and enemy as 1. Physical seat IDs remain 0–31.
+This preserves the lab containers' Machina 1 vocabulary without changing
+the four teams in the simulation. Opposing factions are intentionally merged
+in this compatibility view; BASIC and tensor views retain their existing APIs.
 
 PW supplies its own inventories, team banks, roles, station recipes, local
 position, last movement, and territory. Reward is zero: PW has no equivalent
@@ -57,5 +63,6 @@ map seeds, initial energy, timing, or simulation behavior.
 Transport checks alone do not establish unchanged-container compatibility.
 Before listing this release or transferring policies, run Doug's and Hananel's
 registered versions through complete hosted episodes and inspect their logs,
-actions, failures, and scores. Their existing Machina 1 containers may assume
-two teams or specific tags. Keep the release non-canonical until that check passes.
+actions, failures, and scores. A full episode can still hide a semantic mismatch:
+inspect recognized teams and action diversity as well as step counts. Keep the
+release non-canonical until that check passes.
