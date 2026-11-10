@@ -58,14 +58,24 @@ per-agent shaped reward. Station protocol hints reflect the fixed PW recipes.
 The projection does not promise MettaGrid's observation ordering, truncation,
 map seeds, initial energy, timing, or simulation behavior.
 
-## Release gate
+## Hosted verification
 
-Transport checks alone do not establish unchanged-container compatibility.
-Before listing this release or transferring policies, run Doug's and Hananel's
-registered versions through complete hosted episodes and inspect their logs,
-actions, failures, and scores. A full episode can still hide a semantic mismatch:
-inspect recognized teams and action diversity as well as step counts. Keep the
-release non-canonical until that check passes.
+Release `0.1.6rc2` passed all ten hosted certification checks on 2026-11-10.
+Two full episodes used unchanged `doug-cvc-hybrid:v5` and `quietcog-seat:v11`
+containers, rotating their eight-seat teams between the lower and upper halves.
+Every one of the 32 container runs logged 10,000 observations. All 16 Hananel
+runs reported zero step gaps. The existing Safa tensor player completed
+10,000 inference steps in each episode alongside the BASIC fillers.
+
+The [lower-seat episode](https://softmax.com/observatory/v2/episode-requests/ereq_92fa1fc7-1b95-4d33-b60f-6964d2c44906/watch)
+and [upper-seat episode](https://softmax.com/observatory/v2/episode-requests/ereq_7930040e-7b57-4494-8a68-250d65d109d4/watch)
+verify execution and faction recognition. They do not establish ranking or
+MettaGrid simulation equivalence. Source revisions, image digests, certification,
+scores, and per-seat checks are recorded in [the verification artifact](docker-verification.json).
+
+The release remains non-canonical. Listing and participant migration were not
+changed. Doug's selection setting permits requests visible to him, so these
+tests use public Experience Requests. Elevated access does not waive that setting.
 
 ## Repeatable local check
 
