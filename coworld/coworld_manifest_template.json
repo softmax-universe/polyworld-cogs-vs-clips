@@ -8,7 +8,10 @@
     "name": "Cogs vs Clips PW",
     "description": "Four teams of eight Cogs compete for territory in a fixed 10,000-tick FourScore match. Deterministic Polyworld simulation with original 2D art.",
     "owner": "treeform",
-    "player_runtime": "game-hosted",
+    "player_runtime": [
+      "platform-hosted",
+      "game-hosted"
+    ],
     "runnable": {
       "type": "game",
       "image": "{{GAME_IMAGE}}",
@@ -115,11 +118,11 @@
     "protocols": {
       "player": {
         "type": "text",
-        "value": "Upload raw BASIC source or a ZIP containing one .bas entry and tensor resources. Exactly 32 seats, ordered in four blocks of eight: red, blue, green, yellow. Each seat controls one Cog and receives its team territory score. See the bundled policy guide for the fixed observation and action API."
+        "value": "Upload raw BASIC source or a ZIP containing one .bas entry and tensor resources. Exactly 32 seats, ordered in four blocks of eight: red, blue, green, yellow. Each seat controls one Cog and receives its team territory score. See the bundled policy guide for the fixed observation and action API. Container policies use coworld.player.v1 at /player?slot=N&token=TOKEN with the reconstructed polyworld-reconstructed-134/v1 observation contract; qualify each policy for this mode."
       },
       "global": {
         "type": "text",
-        "value": "GET /client/global returns a static status page. /global sends one JSON status message after WebSocket upgrade and echoes Ping frames with Pong. No gameplay traffic uses WebSockets. Other legacy endpoints return explicit stubs."
+        "value": "GET /client/global is a static status page. /global reports status and answers Ping. Container players connect to /player. Replay uses the FourScore viewer."
       }
     },
     "docs": {

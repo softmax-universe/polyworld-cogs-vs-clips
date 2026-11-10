@@ -92,7 +92,17 @@ Package the cooperative viewer with
 `coworld/tools/build_replay_viewer.sh coworld/dist/replay-viewer cooperative`.
 Use [the cooperative manifest template](../coworld/cooperative_manifest_template.json) and
 `docker compose -f coworld/compose.cooperative.yaml build` for the cooperative image.
-The ordinary compose file and template still build FourScore. Resolve `{{GAME_IMAGE}}` during normal Coworld packaging.
+The ordinary compose file and template build FourScore with mixed-policy support.
+These manifests are standalone qualification fixtures. The shared release manifest
+belongs to `coworld-cogs-vs-clips`, which pins this repository as a source dependency.
+Resolve `{{GAME_IMAGE}}` during normal Coworld packaging.
+
+To package both decoders for downstream use, run
+`coworld/tools/build_replay_viewer.sh /absolute/new/bundle both`.
+The output must not exist. Its entry point reads the replay header and selects
+cooperative CvC or FourScore; unsupported game/version headers fail visibly.
+The exported `replayMode(url)` in `route.js` also lets the downstream viewer
+route MettaGrid replays to its own renderer without copying Polyworld decoding rules.
 
 System verification:
 

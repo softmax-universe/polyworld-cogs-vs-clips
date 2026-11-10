@@ -1,6 +1,6 @@
 """Real game/WS/replay flow: mixed seats must preserve actions and private outputs.
 
-Run with Python providing websockets, after tools/build_cooperative.sh:
+Run with Python providing websockets, after tools/build_cooperative.sh (add --fourscore for the 32-seat build):
     python tests/system/cooperative_hosted.py
 """
 
@@ -17,6 +17,10 @@ from pathlib import Path
 import websockets
 
 ROOT = Path(__file__).resolve().parents[2]
+COOPERATIVE = "--fourscore" not in sys.argv
+SEATS = 8 if COOPERATIVE else 32
+HOSTED = ROOT / ("out/cvc-cooperative-hosted" if COOPERATIVE else "out/cvc-hosted")
+NATIVE_GAME = ROOT / ("out/cvc-cooperative" if COOPERATIVE else "out/cvc-headless")
 NAMES = ["noop", "move_north", "move_south", "move_west", "move_east"]
 NATIVE = [0, 1, 3, 4, 2]
 
@@ -29,15 +33,17 @@ async def run_case(
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     config = {
-        "tokens": [f"secret-{slot}" for slot in range(8)],
-        "players": [{"name": f"Cog {slot}"} for slot in range(8)],
+        "tokens": [f"secret-{slot}" for slot in range(SEATS)],
+        "players": [{"name": f"Cog {slot}"} for slot in range(SEATS)],
         "seed": 42,
         "map_seed": 20261110,
         "max_ticks": 10000,
     }
+    if not COOPERATIVE:
+        del config["map_seed"]
     roster = []
     native_args = []
-    for slot in range(8):
+    for slot in range(SEATS):
         source = directory / f"player-{slot}.bas"
         source.write_text(
             f'print "private-{slot}"\nact({(0 if docker_reference and slot in remote else NATIVE[slot % 5])})\n'
@@ -81,7 +87,7 @@ async def run_case(
     with (directory / "game.log").open("w") as log:
         process = await asyncio.to_thread(
             subprocess.Popen,
-            [ROOT / "out/cvc-cooperative-hosted"],
+            [HOSTED],
             env=env,
             stdout=log,
             stderr=log,
@@ -116,7 +122,7 @@ async def run_case(
                             configured["type"] == "player_config"
                             and configured["slot"] == slot
                         )
-                        assert configured["policy_env"]["num_agents"] == 8
+                        assert configured["policy_env"]["num_agents"] == SEATS
                         assert configured["action_names"] == NAMES
                         if slot == min(remote):
                             duplicate = await asyncio.to_thread(
@@ -205,7 +211,7 @@ async def run_case(
                 statuses = json.loads((directory / "status.json").read_text())[
                     "players"
                 ]
-                assert {row["slot"] for row in statuses} == set(range(8)) - remote
+                assert {row["slot"] for row in statuses} == set(range(SEATS)) - remote
                 assert "private-" not in (directory / "game.log").read_text()
                 if failure:
                     assert result["failed_policy_index"] == (
@@ -213,11 +219,16 @@ async def run_case(
                     )
                     assert not (directory / "results.json").exists()
                 else:
-                    assert result["ticks"] == 10000 and len(set(result["scores"])) == 1
+                    assert result["ticks"] == 10000 and len(result["scores"]) == SEATS
+                    for first in range(0, SEATS, 8):
+                        assert len(set(result["scores"][first : first + 8])) == 1
+                    replay_bytes = (directory / "episode.replay").read_bytes()
+                    for name in config["players"]:
+                        assert name["name"].encode() in replay_bytes
                     replay = await asyncio.to_thread(
                         subprocess.check_output,
                         [
-                            ROOT / "out/cvc-cooperative",
+                            NATIVE_GAME,
                             "--replay:" + str(directory / "episode.replay"),
                         ],
                         text=True,
@@ -225,20 +236,22 @@ async def run_case(
                     expected = await asyncio.to_thread(
                         subprocess.check_output,
                         [
-                            ROOT / "out/cvc-cooperative",
+                            NATIVE_GAME,
                             "--seed:42",
-                            "--map-seed:20261110",
+                            *(["--map-seed:20261110"] if COOPERATIVE else []),
                             *native_args,
                         ],
                         text=True,
                     )
                     assert replay == expected, (replay, expected)
-                    for slot in set(range(8)) - remote:
-                        private = (directory / f"private-{slot}.log").read_text()
+                    for slot in set(range(SEATS)) - remote:
+                        private = (
+                            (directory / f"private-{slot}.log").read_text().splitlines()
+                        )
                         assert f"private-{slot}" in private
                         assert all(
                             f"private-{other}" not in private
-                            for other in range(8)
+                            for other in range(SEATS)
                             if other != slot
                         )
                     assert all(
@@ -252,14 +265,14 @@ async def run_case(
 
 
 async def main() -> None:
-    directory = Path(tempfile.mkdtemp(prefix="cvc-cooperative-system-"))
+    directory = Path(tempfile.mkdtemp(prefix="cvc-hosted-system-"))
     print("Evidence:", directory, flush=True)
     if "--docker-reference" in sys.argv:
         await run_case(directory / "docker-reference", {7}, docker_reference=True)
         return
     await run_case(directory / "all-files", set())
     await run_case(directory / "mixed", {1, 3, 5, 7})
-    await run_case(directory / "all-containers", set(range(8)))
+    await run_case(directory / "all-containers", set(range(SEATS)))
     await run_case(directory / "invalid-basic", {1}, "basic")
     await run_case(directory / "invalid-action", {1}, "action")
     await run_case(directory / "invalid-json", {1}, "json")

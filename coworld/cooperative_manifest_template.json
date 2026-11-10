@@ -136,8 +136,7 @@
         "type": "text",
         "value": "# Cooperative Cogs vs Clips\n\nEight Cogs cooperate against automated Clips for 10,000 ticks. Daily seeded Polyworld maps; mixed BASIC and container policies.\n\nScores are mean held junctions across 10,000 ticks. The league planner freezes map_seed as the round creation date in UTC YYYYMMDD. Simulation seed is separate. Eight submitted Cogs share the same team score.\n\nContainer startup allows 300 seconds, then each action allows 30 seconds. Actions: noop, move_north, move_south, move_west, move_east. BASIC uses 0 rest, 1 north, 2 east, 3 south, 4 west. Both receive the same pre-tick state.\n\nThe map generator and sparse observations are Polyworld reconstructions, not exact MettaGrid parity. Qualify old policies before enrollment. See docs/cooperative-migration.md in the source repository.\n"
       }
-    },
-    "version": "0.1.0"
+    }
   },
   "player": [
     {
