@@ -66,3 +66,12 @@ registered versions through complete hosted episodes and inspect their logs,
 actions, failures, and scores. A full episode can still hide a semantic mismatch:
 inspect recognized teams and action diversity as well as step counts. Keep the
 release non-canonical until that check passes.
+
+## Repeatable local check
+
+After building the Coworld, run `python tests/system/docker_players.py`.
+It builds a small Docker player and uses the real Coworld runner for two full
+matches. Four container seats, one in each corner, must match an all-BASIC
+north-moving roster byte for byte. The players also check their friendly-team
+vocabulary and send stale actions that must not enter the replay.
+Artifacts remain under `out/docker-system-*` for inspection.
