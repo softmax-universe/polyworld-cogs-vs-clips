@@ -81,11 +81,12 @@ Record crashes, action distribution, score, runtime, and paired changes; reject 
 
 ## Build and verify
 
-Install the pinned dependencies, then build using Nim 2.2.10:
+Resolve the dependencies, then build using Nim 2.2.10:
 
 ```sh
 python3 tools/setup_dependencies.py
 export POLYWORLD_DEPS="$PWD/.deps"
+export POLYWORLD_REVISION="$(git -C "$POLYWORLD_DEPS/polyworld" rev-parse HEAD)"
 ./tools/build_cooperative.sh
 ./out/cvc-cooperative --seed 42 --map-seed 20261110 --record out/cooperative.replay
 ./tools/build_browser.sh cooperative
@@ -99,7 +100,7 @@ Use [the cooperative manifest template](../coworld/cooperative_manifest_template
 `docker compose -f coworld/compose.cooperative.yaml build` for the cooperative image.
 The ordinary compose file and template build FourScore with mixed-policy support.
 These manifests are standalone qualification fixtures. The shared release manifest
-belongs to `coworld-cogs-vs-clips`, which pins this repository as a source dependency.
+belongs to `coworld-cogs-vs-clips`, which tracks this repository's `main` branch.
 Resolve `{{GAME_IMAGE}}` during normal Coworld packaging.
 
 To package both decoders for downstream use, run
@@ -147,5 +148,5 @@ Those runs established the named observation vocabulary and protocol fixes carri
 They did not qualify cooperative maps, all imported policies, or MettaGrid-equivalent rankings.
 
 Before release, rebuild and certify the consolidated source and repeat unchanged lab-image matches in both modes.
-Update the game pin in `coworld-cogs-vs-clips` only after this follow-up merges; retain separate variant standings.
+Release builds in `coworld-cogs-vs-clips` follow upstream `main`; retain separate variant standings.
 The closed PW #2 and Polyworld #115 branches preserve the earlier implementation and evidence.
