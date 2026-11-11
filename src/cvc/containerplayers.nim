@@ -1,19 +1,16 @@
-import std/[parsejson, streams, json, monotimes, times], polyworld/coworld, common, neuralviews
+import std/[parsejson, streams, json, monotimes, times], coworldhost, common, mettagridview
 
 const
   ActionNames = ["noop", "move_north", "move_south", "move_west", "move_east"]
-  LegacyActions = [Rest, North, South, West, East]
   ConnectionTimeoutMs = 300_000
   ActionTimeoutMs = 30_000
-  SourceEnvironment =
-    when defined(cooperative): staticRead("../../data/policies/cooperative_environment.json")
-    else: staticRead("../../training/fourscore/safa_candidate.json")
+  SourceEnvironment = staticRead("../../data/policies/cooperative_environment.json")
   Protocol = "coworld.player.v1"
   Mission = (when defined(cooperative): "machina_1" else: "four_score")
 
 type ContainerPlayers* = object
   remote: array[CogCount, bool]
-  view: NeuralView
+  view: ContainerView
 
 proc connectPlayers*(): ContainerPlayers =
   ## Preserves the published wire exchange while declaring reconstructed inputs.
@@ -43,7 +40,7 @@ proc connectPlayers*(): ContainerPlayers =
       "connection_id": "player-" & $event.slot,
       "num_agents": CogCount, "max_steps": MaxTicks,
       "action_names": ActionNames, "observation_shape": [500, 3],
-      "policy_env": environment, "observation_contract": (when defined(cooperative): "polyworld-machina-74/v1" else: "polyworld-reconstructed-134/v1"),
+      "policy_env": environment, "observation_contract": "polyworld-machina-74/v1",
       "observation": {"width": 13, "height": 13,
         "features": environment["obs_features"], "tags": environment["tags"],
         "global_location": 254, "empty_location": 255},
@@ -63,9 +60,7 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
       continue
     pending[slot] = true
     inc remaining
-    var grid: NeuralGrid
-    var observation: LegacyObservation
-    players.view.neuralGrid(world, slot, 3, grid, tokens = addr observation)
+    let observation = players.view.observe(world, slot)
     sendPlayer(slot, $(%*{
       "type": "observation", "protocol": Protocol, "mission": Mission,
       "slot": slot, "step": world.tick, "observation": observation,
@@ -81,7 +76,7 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
       for slot, waiting in pending:
         if waiting:
           rejectPlayer(slot, "Player action deadline exceeded")
-    if event.kind != PlayerMessage or not pending[event.slot]:
+    if event.kind != PlayerMessage:
       rejectPlayer(event.slot, "Player disconnected or sent unsolicited traffic")
     # Validate untrusted JSON without exceptions before constructing its tree.
     # Bound nesting and integers so malformed policy traffic is attributed to its seat.
@@ -112,6 +107,14 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
     let action = parseJson(event.data)
     if action.kind != JObject or not action.hasKey("type") or action["type"] != %"action":
       rejectPlayer(event.slot, "Expected an action message")
+    if action.hasKey("request_id"):
+      if action["request_id"].kind != JString:
+        rejectPlayer(event.slot, "Expected a string request_id")
+      let requestId = action["request_id"].getStr()
+      if requestId.len > 0 and requestId != "step-" & $world.tick:
+        continue
+    if not pending[event.slot]:
+      rejectPlayer(event.slot, "Duplicate action for current observation")
     var index = -1
     if action.hasKey("action_name") and action["action_name"].kind == JString:
       index = ActionNames.find(action["action_name"].getStr())
@@ -121,7 +124,8 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
         index = int(value)
     if index notin 0 .. 4:
       rejectPlayer(event.slot, "Invalid movement action")
-    actions[event.slot] = LegacyActions[index]
+    actions[event.slot] = LegacyToAction[index]
+    completePlayerReply(event.slot)
     pending[event.slot] = false
     dec remaining
   players.view.last = actions

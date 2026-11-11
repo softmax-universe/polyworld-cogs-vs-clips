@@ -32,9 +32,10 @@ async def run_case(
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
+    player_names = [{"name": f"Cog {slot}"} for slot in range(SEATS)]
     config = {
         "tokens": [f"secret-{slot}" for slot in range(SEATS)],
-        "players": [{"name": f"Cog {slot}"} for slot in range(SEATS)],
+        "players": player_names,
         "seed": 42,
         "map_seed": 20261110,
         "max_ticks": 10000,
@@ -42,7 +43,7 @@ async def run_case(
     if not COOPERATIVE:
         del config["map_seed"]
     roster = []
-    native_args = []
+    native_args: list[str] = []
     for slot in range(SEATS):
         source = directory / f"player-{slot}.bas"
         source.write_text(
@@ -124,6 +125,8 @@ async def run_case(
                         )
                         assert configured["policy_env"]["num_agents"] == SEATS
                         assert configured["action_names"] == NAMES
+                        assert len(configured["policy_env"]["obs_features"]) == 74
+                        friendly = configured["policy_env"]["tags"].index("team:cogs")
                         if slot == min(remote):
                             duplicate = await asyncio.to_thread(
                                 subprocess.check_output,
@@ -149,7 +152,26 @@ async def run_case(
                                 message["slot"] == slot
                                 and len(message["observation"]) == 500
                             )
-                            action = {"type": "action", "request_id": f"step-{step}"}
+                            own_tags = {
+                                value
+                                for location, feature, value in message["observation"]
+                                if location == 102 and feature == 6
+                            }
+                            assert friendly in own_tags, (slot, step, own_tags)
+                            if step % 100 == 0:
+                                await ws.send(
+                                    json.dumps(
+                                        {
+                                            "type": "action",
+                                            "request_id": f"step-{step - 1}",
+                                            "action_index": (slot + 1) % 5,
+                                        }
+                                    )
+                                )
+                            action: dict[str, str | int] = {
+                                "type": "action",
+                                "request_id": f"step-{step}",
+                            }
                             if failure == "json":
                                 await ws.send("{malformed")
                                 return
@@ -223,12 +245,12 @@ async def run_case(
                     for first in range(0, SEATS, 8):
                         assert len(set(result["scores"][first : first + 8])) == 1
                     replay_bytes = (directory / "episode.replay").read_bytes()
-                    for name in config["players"]:
+                    for name in player_names:
                         assert name["name"].encode() in replay_bytes
                     replay = await asyncio.to_thread(
                         subprocess.check_output,
                         [
-                            NATIVE_GAME,
+                            str(NATIVE_GAME),
                             "--replay:" + str(directory / "episode.replay"),
                         ],
                         text=True,
@@ -236,7 +258,7 @@ async def run_case(
                     expected = await asyncio.to_thread(
                         subprocess.check_output,
                         [
-                            NATIVE_GAME,
+                            str(NATIVE_GAME),
                             "--seed:42",
                             *(["--map-seed:20261110"] if COOPERATIVE else []),
                             *native_args,

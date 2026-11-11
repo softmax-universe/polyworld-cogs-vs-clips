@@ -4,7 +4,7 @@ import
   sims, profiles, routes, yields, observations, neuralviews
 
 when defined(coworld):
-  import polyworld/coworld
+  import coworldhost
 
 const
   BaselineSource* = staticRead("../../players/base.bas")

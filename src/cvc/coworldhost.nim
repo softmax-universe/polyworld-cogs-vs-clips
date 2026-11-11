@@ -1,0 +1,421 @@
+## Game-owned Coworld lifecycle, derived from Polyworld a5e57c0.
+import
+  std/[os, posix, strutils, times, uri],
+  jsony, mummy,
+  bassy,
+  polyworld/[annotations, cli, policies], playertransport
+
+export playertransport
+
+const
+  PlayerLogLimit* = 10 * 1024 * 1024
+  Truncation = "\n[Player log truncated at 10 MiB.]\n"
+  GlobalHtml = "<!doctype html><title>Polyworld</title>" &
+    "<p>This game runs file players. Open the completed episode replay.</p>"
+
+type
+  CoworldError* = object of CatchableError
+  CoworldTokens = object
+    tokens: seq[string]
+  CoworldSeatKind* = enum
+    unspecified, policy, container, human
+  CoworldSeat* = object
+    slot*: int
+    kind*: CoworldSeatKind
+    fileUri*, contentHash*: string
+    sizeBytes*: int64
+    logUri*, artifactUri*, annotationsUri*: string
+  CoworldSeats* = object
+    schema*: string
+    seats*: seq[CoworldSeat]
+    playerStatusUri*: string
+  PlayerLog = object
+    file: File
+    bytes: int
+    truncated: bool
+    failed: bool
+  PlayerStatus = object
+    slot: int
+    state: string
+    exitCode: int
+    reason, finishedAt: string
+  PlayerStatuses = object
+    schemaVersion: string
+    players: seq[PlayerStatus]
+  PlayerFailure = object
+    message: string
+    failedPolicyIndex: int
+  CoworldResults* = object
+    scores*: seq[int]
+    ticks*: int32
+    seed*: int32
+    outcome*: string
+    bankedGold*: seq[int32]
+    returned*: seq[bool]
+  ServerAddress = object
+    server: Server
+    host: string
+    port: Port
+
+var
+  seats*: CoworldSeats
+  config*: GameConfig
+  logs: seq[PlayerLog]
+  annotationSinks: seq[AnnotationSink]
+  server: Server
+  serverThread: Thread[ServerAddress]
+  resultsPath, replayPath, failurePath: string
+
+proc renameHook*(
+    value: var (CoworldSeat | CoworldSeats),
+    fieldName: var string
+) =
+  ## Maps the platform's snake case wire fields to Nim field names.
+  var
+    name: string
+    upper = false
+  for character in fieldName:
+    if character == '_':
+      upper = true
+    else:
+      name.add(if upper: character.toUpperAscii else: character)
+      upper = false
+  fieldName = name
+
+proc dumpHook*(
+    bytes: var string,
+    value: CoworldResults | PlayerStatus | PlayerStatuses | PlayerFailure
+) =
+  ## Serializes protocol records with the platform's snake case field names.
+  bytes.add '{'
+  var first = true
+  for name, field in value.fieldPairs:
+    if not first:
+      bytes.add ','
+    first = false
+    var wireName: string
+    for character in name:
+      if character in {'A' .. 'Z'}:
+        wireName.add '_'
+      wireName.add character.toLowerAscii
+    bytes.add wireName.toJson()
+    bytes.add ':'
+    bytes.add field.toJson()
+  bytes.add '}'
+
+proc localPath*(value: string): string =
+  ## Decodes an absolute local file URI without accepting network inputs.
+  var parsed: Uri
+  try:
+    parsed = parseUri(value)
+  except ValueError:
+    raise newException(CoworldError, "Invalid local file URI")
+  if parsed.scheme != "file" or
+    parsed.hostname.len > 0 or parsed.query.len > 0 or
+    parsed.anchor.len > 0 or not parsed.path.startsWith("/"):
+      raise newException(CoworldError, "Expected an absolute file URI")
+  decodeUrl(parsed.path, decodePlus = false)
+
+proc readLocal*(value: string): string =
+  ## Reads a runner-provided local file and normalizes filesystem failures.
+  try:
+    readFile(localPath(value))
+  except IOError, OSError:
+    raise newException(CoworldError,
+      "Cannot read local input: " & getCurrentExceptionMsg())
+
+proc readPlayerSource*(path: string): string =
+  ## Bounds staged raw BASIC and ZIP files before package validation.
+  try:
+    readPolicyBytes(path)
+  except PolicyError as error:
+    raise newException(CoworldError, error.msg)
+
+proc writeAtomic*(path, bytes: string) =
+  ## Publishes a complete artifact using a rename in the same directory.
+  try:
+    createDir(path.parentDir)
+    writeFile(path & ".tmp", bytes)
+    moveFile(path & ".tmp", path)
+  except IOError, OSError:
+    raise newException(CoworldError,
+      "Cannot write artifact: " & getCurrentExceptionMsg())
+
+proc playerLog*(slot: int, text: string) =
+  ## Appends bounded private diagnostics for one platform seat.
+  assert slot >= 0 and slot < logs.len
+  if logs[slot].truncated:
+    return
+  try:
+    let remaining = PlayerLogLimit - Truncation.len - logs[slot].bytes
+    if text.len <= remaining:
+      logs[slot].file.write(text)
+      logs[slot].bytes += text.len
+    else:
+      if remaining > 0:
+        logs[slot].file.write(text[0 ..< remaining])
+      logs[slot].file.write(Truncation)
+      logs[slot].bytes = PlayerLogLimit
+      logs[slot].truncated = true
+  except IOError as error:
+    raise newException(CoworldError, "Cannot write player log: " & error.msg)
+
+proc playerPrinter*(slot: int): PrintProc =
+  ## Captures one immutable slot for BASIC's existing print callback.
+  result = proc(event: PrintEvent) =
+    ## Writes BASIC output without copying it to public game diagnostics.
+    case event.kind
+    of TextPrint:
+      playerLog(slot, event.text)
+    of ValuePrint:
+      playerLog(slot, $event.value)
+    of FixedPrint:
+      playerLog(slot, $event.fixedValue)
+    of NewlinePrint:
+      playerLog(slot, "\n")
+
+proc playerError*(slot: int, message: string) =
+  ## Records a disabled BASIC VM in its private log and status snapshot.
+  logs[slot].failed = true
+  playerLog(slot, "\nBASIC error: " & message & "\n")
+
+proc closePlayerOutputs*() =
+  ## Flushes and closes private outputs before episode completion.
+  for slot, sink in annotationSinks:
+    if sink.close() == AnnotationWriteFailed:
+      playerLog(slot, "\n[Annotations: " & AnnotationWriteFailed.annotationMessage & ".]\n")
+  annotationSinks.setLen(0)
+  for log in logs.mitems:
+    if log.file != nil:
+      try:
+        log.file.flushFile()
+        log.file.close()
+        log.file = nil
+      except IOError as error:
+        raise newException(CoworldError, "Cannot close player log: " & error.msg)
+
+proc writePlayerStatus() =
+  ## Writes diagnostic VM outcomes using the platform's process-status schema.
+  var status = PlayerStatuses(schemaVersion: "1")
+  for slot, log in logs:
+    if seats.seats[slot].kind != policy:
+      continue
+    status.players.add PlayerStatus(
+      slot: slot,
+      state: "exited",
+      exitCode: (if log.failed: 1 else: 0),
+      reason: (if log.failed: "BASIC VM disabled" else: "Completed"),
+      finishedAt: now().utc.format("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    )
+  if seats.playerStatusUri.len > 0:
+    writeAtomic(localPath(seats.playerStatusUri), status.toJson())
+
+proc waitForCollection*() =
+  ## Keeps health and contract stubs alive until the runner stops the process.
+  joinThread(serverThread)
+
+proc rejectPlayer*(slot: int, message: string) {.noreturn.} =
+  ## Reports staged player failures through the owning seat boundary.
+  if seats.seats[slot].kind == policy:
+    playerError(slot, message)
+  closePlayerOutputs()
+  writePlayerStatus()
+  writeAtomic(failurePath, PlayerFailure(
+    message: "Player failed for slot " & $slot & ": " & message,
+    failedPolicyIndex: slot
+  ).toJson())
+  waitForCollection()
+  raise newException(CoworldError, "Player loading failed")
+
+proc loadPlayerPolicy*(bytes: string, slot: int): Policy =
+  ## Parses extensionless staged policy packages with private diagnostics.
+  try:
+    result = loadPolicy(bytes)
+  except PolicyError as error:
+    rejectPlayer(slot, error.msg)
+
+proc playerAnnotations*(slot: int): AnnotationSink =
+  ## Returns only the seat's existing destination; schema/local hosts have none.
+  if slot >= 0 and slot < annotationSinks.len:
+    result = annotationSinks[slot]
+
+proc compilePlayer*(
+    source: string,
+    host: Host,
+    limits: Limits,
+    slot: int
+): Program =
+  ## Compiles a staged BASIC player and reports terminal failures privately.
+  try:
+    result = compile(source, host, limits)
+  except BasicError as error:
+    rejectPlayer(slot, error.msg)
+
+proc requestHandler(request: Request) {.gcsafe.} =
+  ## Serves health and the platform's minimal legacy contract surface.
+  if handlePlayerRequest(request):
+    return
+  case request.path
+  of "/healthz":
+    request.respond(200, body = "ok")
+  of "/client/global", "/client/player", "/client/replay":
+    request.respond(
+      200,
+      @[ ("Content-Type", "text/html; charset=utf-8") ],
+      GlobalHtml
+    )
+  of "/global":
+    discard request.upgradeToWebSocket()
+  else:
+    request.respond(501, body = "File players and static replays only.")
+
+proc websocketHandler(
+    socket: WebSocket,
+    event: WebSocketEvent,
+    message: Message
+) {.gcsafe.} =
+  ## Routes authenticated player events; global viewers receive status and Ping/Pong.
+  if handlePlayerEvent(socket, event, message):
+    return
+  case event
+  of OpenEvent:
+    socket.send("{\"type\":\"status\",\"player_runtime\":\"game-hosted\"}")
+  of MessageEvent:
+    if message.kind == Ping:
+      socket.send(message.data, Pong)
+  of ErrorEvent, CloseEvent:
+    discard
+
+proc serve(address: ServerAddress) {.thread.} =
+  ## Runs the contract server independently of deterministic simulation ticks.
+  address.server.serve(address.port, address.host)
+
+proc coworldOptions*(requiredSlots: int, mixedPlayers = false): GameOptions =
+  ## Loads the file handoff, opens logs, and starts the optional host wrapper.
+  var tokens: CoworldTokens
+  try:
+    let bytes = readLocal(getEnv("COGAME_CONFIG_URI"))
+    config = bytes.fromJson(GameConfig)
+    tokens = bytes.fromJson(CoworldTokens)
+    seats = readLocal(getEnv("COGAME_PLAYER_SEATS_URI")).fromJson(CoworldSeats)
+  except JsonError as error:
+    raise newException(CoworldError,
+      "Invalid Coworld configuration: " & error.msg)
+  let slotCount =
+    if requiredSlots > 0: requiredSlots else: config.players.len
+  let validSchema = seats.schema in ["coworld-player-seats/1", "coworld-player-seats/2"] or
+    (mixedPlayers and seats.schema == "coworld-play-seats/2")
+  if slotCount notin 1 .. 64 or not validSchema or
+    seats.seats.len != slotCount or tokens.tokens.len != slotCount or
+    config.players.len != slotCount:
+      raise newException(CoworldError, "Coworld roster does not match the game")
+  if config.maxTicks <= 0 or config.maxTicks > DefaultDurationTicks or
+    config.spawnIntervalTicks <= 0:
+      raise newException(CoworldError, "Coworld tick limits are invalid")
+  resultsPath = localPath(getEnv("COGAME_RESULTS_URI"))
+  replayPath = localPath(getEnv("COGAME_SAVE_REPLAY_URI"))
+  failurePath = localPath(getEnv("COGAME_PLAYER_FAILURE_URI"))
+  result = GameOptions(
+    seed: config.seed,
+    maximumTicks: config.maxTicks,
+    seconds: config.maxTicks div SharedTickRate,
+    spawnIntervalTicks: config.spawnIntervalTicks,
+    headlessTickRate: config.headlessTickRate,
+    waitForLlm: config.waitForLlm,
+    recordPath: replayPath,
+    speed: 1
+  )
+  if seats.schema != "coworld-play-seats/2":
+    for seat in seats.seats.mitems:
+      if seat.kind == unspecified:
+        seat.kind = policy
+  logs.setLen(slotCount)
+  for slot, seat in seats.seats:
+    if seat.slot != slot:
+      raise newException(CoworldError, "Coworld seats must be in slot order")
+    if seat.kind == unspecified:
+      raise newException(CoworldError, "Mixed rosters require explicit seat kinds")
+    if seat.kind != policy:
+      if not mixedPlayers or seats.schema != "coworld-play-seats/2":
+        raise newException(CoworldError, "Remote players require a mixed roster")
+      continue
+    let path = localPath(seat.fileUri)
+    try:
+      if getFileSize(path) != seat.sizeBytes:
+        raise newException(CoworldError, "Staged player size does not match")
+      let logPath = localPath(seat.logUri)
+      createDir(logPath.parentDir)
+      logs[slot].file = open(logPath, fmWrite)
+    except IOError, OSError:
+      closePlayerOutputs()
+      raise newException(CoworldError,
+        "Cannot open player files: " & getCurrentExceptionMsg())
+    result.botGroups.add BotGroup(path: path, count: 1)
+    playerLog(slot, "Player slot " & $slot & " started.\n")
+  var remote = newSeq[bool](slotCount)
+  for slot, seat in seats.seats:
+    if tokens.tokens[slot].len == 0:
+      raise newException(CoworldError, "Player tokens must be nonempty")
+    remote[slot] = seat.kind != policy
+  initPlayerTransport(tokens.tokens, remote)
+  annotationSinks = newSeq[AnnotationSink](slotCount)
+  for slot, seat in seats.seats:
+    if seat.kind == policy and seat.annotationsUri.len > 0:
+      annotationSinks[slot] = newAnnotationSink(localPath(seat.annotationsUri))
+  var port: int
+  try:
+    port = parseInt(getEnv("COGAME_PORT", "8080"))
+  except ValueError:
+    raise newException(CoworldError, "COGAME_PORT must be an integer")
+  if port < 1 or port > 65535:
+    raise newException(CoworldError, "COGAME_PORT is out of range")
+  server = newServer(requestHandler, websocketHandler, workerThreads = 2, maxMessageLen = 64 * 1024)
+  createThread(serverThread, serve, ServerAddress(
+    server: server,
+    host: getEnv("COGAME_HOST", "0.0.0.0"),
+    port: Port(port)
+  ))
+
+proc completedSignal(signal: cint) {.noconv.} =
+  ## Exits successfully when the runner terminates a completed episode.
+  exitnow(QuitSuccess)
+
+proc finishCoworld*(
+  results: CoworldResults,
+  totalXp: seq[int] = @[],
+  scoreDivisor: int = 1
+) =
+  ## Finalizes private outputs before publishing the successful result marker.
+  if scoreDivisor <= 0:
+    raise newException(CoworldError, "Score divisor must be positive")
+  if results.scores.len != logs.len or not fileExists(replayPath):
+    raise newException(CoworldError, "Incomplete Coworld results or replay")
+  if totalXp.len > 0 and totalXp.len != logs.len:
+    raise newException(CoworldError, "XP results do not match the roster")
+  for slot in 0 ..< logs.len:
+    if seats.seats[slot].kind != policy:
+      continue
+    playerLog(slot, "\nPlayer slot " & $slot & " completed.\n")
+  closePlayerOutputs()
+  writePlayerStatus()
+  echo "Coworld episode completed after ", results.ticks, " ticks."
+  try:
+    stdout.flushFile()
+    stderr.flushFile()
+  except IOError as error:
+    raise newException(CoworldError, "Cannot flush game logs: " & error.msg)
+  var bytes = results.toJson()
+  if scoreDivisor != 1:
+    var scores: seq[float64]
+    for score in results.scores:
+      scores.add score.float64 / scoreDivisor.float64
+    bytes = bytes.replace(
+      "\"scores\":" & results.scores.toJson(),
+      "\"scores\":" & scores.toJson()
+    )
+  if totalXp.len > 0:
+    bytes.setLen(bytes.len - 1)
+    bytes.add ",\"total_xp\":" & totalXp.toJson() & "}"
+  writeAtomic(resultsPath, bytes)
+  discard posix.signal(SIGTERM, completedSignal)
+  waitForCollection()
