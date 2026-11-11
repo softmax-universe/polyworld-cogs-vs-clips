@@ -9,7 +9,7 @@ The cooperative build adds eight Cogs against automated Clips, daily seeded maps
 and mixed BASIC/container seats. See [migration preparation](docs/cooperative-migration.md)
 for builds, policy qualification, league settings, and release gates.
 The existing [Cogs vs Clips Coworld](https://github.com/softmax-universe/coworld-cogs-vs-clips)
-consumes this repository as a pinned source dependency. That repository owns the
+consumes this repository from its `main` branch. That repository owns the
 shared manifest, league variants, release packaging, and legacy MettaGrid runtime.
 This repository owns Polyworld rules, policy adaptation, native builds, and viewers.
 It is not deployed as the official league.
@@ -26,7 +26,7 @@ With the sibling dependencies already installed in `/Users/me/p`:
 ```
 
 Run commands from this repository. For an independent checkout, install
-Nim 2.2.10 or newer, then fetch the revisions in `dependencies.lock`:
+Nim 2.2.10 or newer, then fetch dependencies (`polyworld` follows `main`):
 
 ```sh
 python3 tools/setup_dependencies.py
@@ -35,7 +35,12 @@ export POLYWORLD_DEPS="$PWD/.deps"
 ```
 
 The setup script uses its own dependency directory and leaves sibling
-repositories alone. Emscripten is required for the browser build:
+repositories alone. Each run refreshes Polyworld and records exact revisions in
+`.deps/dependencies.lock`. Set `POLYWORLD_REVISION` to a commit when reproducing a
+release. Docker requires this build argument, resolved to a commit, so its cache
+refreshes when Polyworld changes. Export the revision from
+`git -C "$POLYWORLD_DEPS/polyworld" rev-parse HEAD` before standalone Compose builds. Other Nim library revisions and
+compiler versions remain fixed. Emscripten is required for the browser build:
 
 ```sh
 ./tools/build_browser.sh

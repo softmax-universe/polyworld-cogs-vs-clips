@@ -11,7 +11,7 @@ reports compilation failures with the failed seat index, and writes replay
 and player status before the final results marker. The health and legacy
 WebSocket probes stay available until the platform collects the episode.
 The simulation and ordinary desktop/headless builds retain their existing
-behavior. The server image is built for Linux amd64 from pinned dependencies.
+behavior. The server image is built for Linux amd64 with Polyworld following `main` and fixed third-party dependencies.
 
 The static viewer uses the same WASM simulation and renderer. It reads the
 replay URL from the fragment, with the query parameter as a fallback,
@@ -24,6 +24,9 @@ Use a CoWorld CLI revision supporting `game-hosted` file players, Docker,
 Nim 2.2.10, and Emscripten:
 
 ```sh
+python3 tools/setup_dependencies.py
+export POLYWORLD_DEPS="$PWD/.deps"
+export POLYWORLD_REVISION="$(git -C "$POLYWORLD_DEPS/polyworld" rev-parse HEAD)"
 nim check -d:headless -d:coworld src/cvc.nim
 nim c -d:release -d:headless -d:coworld -o:out/cvc-coworld src/cvc.nim
 nim c -d:release -d:headless -o:out/cvc-headless src/cvc.nim

@@ -5,7 +5,8 @@ ENV PATH=/opt/nim-2.2.10/bin:$PATH
 WORKDIR /src/cvc
 COPY dependencies.lock dependencies.lock
 COPY tools/setup_dependencies.py tools/setup_dependencies.py
-RUN python3 tools/setup_dependencies.py
+ARG POLYWORLD_REVISION
+RUN test -n "$POLYWORLD_REVISION" && POLYWORLD_REVISION="$POLYWORLD_REVISION" python3 tools/setup_dependencies.py
 ENV POLYWORLD_DEPS=/src/cvc/.deps
 COPY config.nims config.nims
 COPY src src

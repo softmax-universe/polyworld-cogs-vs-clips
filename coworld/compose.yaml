@@ -5,3 +5,5 @@ services:
     build:
       context: ..
       dockerfile: coworld/Dockerfile
+      args:
+        POLYWORLD_REVISION: ${POLYWORLD_REVISION:?Resolve dependencies and export the Polyworld revision first}
