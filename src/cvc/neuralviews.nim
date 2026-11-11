@@ -21,7 +21,6 @@ type
     owners: array[TileCount, Owner]
     known: array[TileCount, bool]
   NeuralGrid* = array[NeuralInputs, float32]
-  LegacyObservation* = array[500, array[3, uint8]]
 
 proc neuralRole*(slot, requested: int): int =
   ## Resolves one fixed role or the explicit mixed-role lineup.
@@ -61,26 +60,14 @@ proc relative(owner, team: Owner): int =
 
 proc neuralGrid*(view: var NeuralView, world: World, slot, requested: int,
     output: var NeuralGrid,
-    assignments: ptr array[CogCount, int32] = nil,
-    tokens: ptr LegacyObservation = nil) =
+    assignments: ptr array[CogCount, int32] = nil) =
   ## Builds the reconstructed 134-feature candidate from visible sim state.
   assert slot in 0 ..< CogCount and requested in 0 .. 10
   view.prepare(world)
   reset(output)
-  var tokenCount = 0
-  if tokens != nil:
-    for token in tokens[].mitems:
-      token = [255'u8, 255'u8, 255'u8]
   let
     cog = world.cogs[slot]
     role = neuralRole(slot, requested)
-  template rawToken(location, feature, value: untyped) =
-    block:
-      if tokens != nil and tokenCount < tokens[].len:
-        let rawCell = int(location)
-        let packed = (if rawCell == 254: 254 else: (rawCell div 13) * 16 + rawCell mod 13)
-        tokens[][tokenCount] = [uint8(packed), uint8(feature), uint8(value)]
-        inc tokenCount
   template emit(location, feature, value: untyped) =
     block:
       let
@@ -95,22 +82,6 @@ proc neuralGrid*(view: var NeuralView, world: World, slot, requested: int,
           else: 255.0'f
         rawCell = int(location)
         cell = (if rawCell == 254: 168 else: rawCell)
-      when defined(cooperative):
-        var wireField = field
-        var wireValue = int(value)
-        case field
-        of 0 .. 35: discard
-        of 56 .. 67: wireField -= 20
-        of 78 .. 89: wireField -= 30
-        of 100 .. 107: wireField -= 40
-        of 128 .. 133: wireField -= 60
-        else: wireField = -1 # Reward-role features are absent from ordinary Machina.
-        if field == 6 and wireValue < 8:
-          wireValue = [4, -1, 5, -1, 6, -1, 7, -1][wireValue]
-        if wireField >= 0 and wireValue >= 0:
-          rawToken(rawCell, wireField, wireValue)
-      else:
-        rawToken(rawCell, field, value)
       output[field * 169 + cell] += float32(value) / (norm + 0.000001'f)
   template inventory(location, feature, amount: untyped) =
     block:
@@ -194,8 +165,6 @@ proc neuralGrid*(view: var NeuralView, world: World, slot, requested: int,
           emit(cell, 6, 13)
         of Ship:
           emit(cell, 6, 18)
-          when defined(cooperative):
-            rawToken(cell, 6, int(station.lane) - 1)
         of Extractor:
           emit(cell, 6, ResourceTags[ord(station.element)])
           inventory(cell, ResourceFeatures[ord(station.element)], station.stock)

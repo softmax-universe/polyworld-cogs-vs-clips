@@ -1,6 +1,6 @@
 import
   std/[json, os],
-  polyworld/coworld,
+  coworldhost,
   sims, replays, bots, containerplayers
 
 proc runHosted*() =
@@ -28,7 +28,7 @@ proc runHosted*() =
   let
     session = newSession(options.seed, mapSeed)
     policies = newBots(sources, active)
-  session.tape.config.players = coworld.config.players
+  session.tape.config.players = coworldhost.config.players
   var remote = connectPlayers()
   while session.world.tick < MaxTicks:
     var actions = policies.decide(session.world)

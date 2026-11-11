@@ -48,16 +48,21 @@ automatic daily variation requires deploying the companion planner change before
 
 ## Mixed policies and old containers
 
-The companion Polyworld host accepts `coworld-play-seats/2` with explicit `policy`, `container`, or `human` seat kinds.
+The game-owned host in `src/cvc/coworldhost.nim` accepts `coworld-play-seats/2` with explicit `policy`, `container`, or `human` seat kinds.
 Only file seats are loaded into BASIC runtimes. The platform still owns container launch, resources, secrets, and logs.
 The game authenticates `/player?slot=N&token=TOKEN`, rejects duplicates, waits up to 300 seconds for connections,
 and allows 30 seconds for each action. All seats decide against the same pre-tick world.
 Malformed messages and invalid actions produce an attributed player failure; file logs remain private per seat.
 
-The cooperative adapter speaks the original `coworld.player.v1` exchange:
+Both game modes use one container adapter speaking the original `coworld.player.v1` exchange:
 `player_config`, sparse 500×3 observations, action replies, and final results.
 Its 74-feature metadata comes from the ordinary Machina interface. Vibe actions are unsupported.
 The explicit observation contract is `polyworld-machina-74/v1`.
+Every Docker observer sees its own team as Cogs and opponents as Clips, including all four FourScore corners.
+The projection includes visible bank and hub-heart stocks and keeps globals and nearby objects before truncating to 500 tokens.
+Cooperative ships retain their lane tags. The simulator still owns all rules and scores.
+A nonempty action `request_id` must match `step-N`; stale replies are discarded within the same bounded action deadline.
+Actions without a request ID use the existing one-action-per-observation exchange.
 Actions map by name: noop/north/south/west/east correspond to native rest/north/south/west/east,
 whose numeric order differs. Both action names and indices are exercised by the system test.
 
@@ -115,13 +120,14 @@ nim c -r -d:release -d:headless -d:cooperative --path:src \
 ```
 
 The hosted suite runs real server processes and WebSocket clients, checks full replay agreement,
-private file logs, authentication, duplicate connections, malformed actions, and attributed failures.
+private file logs, authentication, duplicate connections, stale replies, friendly-team vocabulary, malformed actions, and attributed failures.
 The replay suite runs three full daily-map matches and checks map connectivity and seeking.
 Native and WebAssembly outputs matched for all 30,000 ticks. The previously published FourScore replay also retained its final hash and scores.
 
 ## Release gates
 
-1. Merge the shared Polyworld transport and Observatory daily-map planner, then pin the approved engine revision.
+1. Merge this game-local host and the Observatory daily-map planner, then update the shared Coworld's game-source pin.
+   The engine dependency uses unchanged Polyworld main; no shared transport PR is required.
 2. Review the adapted map distribution, Clips behavior, and 74-feature observation semantics with the game owners.
 3. Qualify all imported policy images; retain per-policy failures instead of claiming blanket compatibility.
 4. Build the cooperative image and viewer; validate the final manifest and certify real all-file, all-container, and mixed rosters.
@@ -130,3 +136,16 @@ Native and WebAssembly outputs matched for all 30,000 ticks. The previously publ
 
 The current preparation has native/browser and cached-Docker evidence. Full local hosted-stack certification is outstanding.
 No source league is archived, resumed, repointed, or enrolled by these files.
+
+## Prior lab-container evidence
+
+[The retained verification record](docker-verification.json) describes the earlier non-canonical `0.1.6rc2` candidate,
+not a certification of this consolidated source. Its immutable source and image hashes remain unchanged.
+Doug's v5 and Hananel's v11 uploads completed 32 container runs of 10,000 observations across two FourScore matches,
+alongside BASIC and neural file policies. All 16 Hananel runs reported zero step gaps.
+Those runs established the named observation vocabulary and protocol fixes carried into this host.
+They did not qualify cooperative maps, all imported policies, or MettaGrid-equivalent rankings.
+
+Before release, rebuild and certify the consolidated source and repeat unchanged lab-image matches in both modes.
+Update the game pin in `coworld-cogs-vs-clips` only after this follow-up merges; retain separate variant standings.
+The closed PW #2 and Polyworld #115 branches preserve the earlier implementation and evidence.

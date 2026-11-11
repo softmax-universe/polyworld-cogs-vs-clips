@@ -1,0 +1,264 @@
+{
+  "runtime_source_revision": "581ef8b3addfaf48d94c345de57ad05e2f2d2bd4",
+  "polyworld_revision": "e11d5ef405182c0a997163c92c68a8d794f149e2",
+  "coworld_id": "cow_c2e15593-654b-4272-87c0-06862fa22f9b",
+  "version": "0.1.6rc2",
+  "manifest_hash": "sha256:68cd544132cdc03ad4c370ecb5ed618ba9d22c7d6dcb9041d0c8c27ace7606d6",
+  "certification": {
+    "certified": true,
+    "completed_at": "2026-11-10T22:17:34.558504Z",
+    "checks": [
+      {
+        "id": "matriculate",
+        "status": "pass"
+      },
+      {
+        "id": "source-resolves",
+        "status": "pass"
+      },
+      {
+        "id": "images-reachable",
+        "status": "pass"
+      },
+      {
+        "id": "fixture-conforms",
+        "status": "pass"
+      },
+      {
+        "id": "smoke-episode",
+        "status": "pass"
+      },
+      {
+        "id": "results-conform",
+        "status": "pass"
+      },
+      {
+        "id": "replay-present",
+        "status": "pass"
+      },
+      {
+        "id": "replay-loadable",
+        "status": "pass"
+      },
+      {
+        "id": "players-run",
+        "status": "pass"
+      },
+      {
+        "id": "supporting-roles",
+        "status": "pass"
+      }
+    ]
+  },
+  "policies": {
+    "doug-cvc-hybrid:v5": {
+      "version_id": "11bfe6b9-99b3-445e-81fc-7e11baf5c69a",
+      "image_digest": "sha256:1760977dd3d2df007d8d0c5a69c138d15a0f448215a8c658774a98a5a11e8ea8"
+    },
+    "quietcog-seat:v11": {
+      "version_id": "b0f01741-4517-4c79-9756-2c67945c00cf",
+      "image_digest": "sha256:a6a12382196b90669a11ecad0b59fd685bfc4bd6e0f4f2c3d2c817ff6f29622e"
+    },
+    "cvc-pw-safa-tensors-houck:v1": {
+      "version_id": "7e1bfa6c-3535-4ed3-907e-daef935ba874"
+    }
+  },
+  "episodes": [
+    {
+      "episode_request_id": "ereq_92fa1fc7-1b95-4d33-b60f-6964d2c44906",
+      "ticks": 10000,
+      "seed": 1,
+      "team_scores": [
+        56.2516,
+        30.9764,
+        4.7734,
+        50.0132
+      ],
+      "docker_players": [
+        {
+          "slot": 0,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 1,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 2,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 3,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 4,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 5,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 6,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 7,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 8,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 9,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 10,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 11,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 12,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 13,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 14,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 15,
+          "observations": 10000,
+          "zero_step_gaps": true
+        }
+      ],
+      "neural_inferences": 10000,
+      "neural_slot": 16
+    },
+    {
+      "episode_request_id": "ereq_7930040e-7b57-4494-8a68-250d65d109d4",
+      "ticks": 10000,
+      "seed": 1,
+      "team_scores": [
+        4.6382,
+        23.5735,
+        43.0081,
+        71.6636
+      ],
+      "docker_players": [
+        {
+          "slot": 16,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 17,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 18,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 19,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 20,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 21,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 22,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 23,
+          "observations": 10000,
+          "zero_step_gaps": null
+        },
+        {
+          "slot": 24,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 25,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 26,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 27,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 28,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 29,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 30,
+          "observations": 10000,
+          "zero_step_gaps": true
+        },
+        {
+          "slot": 31,
+          "observations": 10000,
+          "zero_step_gaps": true
+        }
+      ],
+      "neural_inferences": 10000,
+      "neural_slot": 0
+    }
+  ],
+  "local_replay_sha256": "59d19ca1b0547800619adc44520dc2f7fe55e79b005ee523e5e50a518a1d04b8",
+  "limits": [
+    "Two rosters at seed 1 establish execution and faction recognition, not ranking or MettaGrid simulation equivalence.",
+    "Human control is not implemented.",
+    "The candidate remains non-canonical; listing and participant migration were not changed."
+  ]
+}
