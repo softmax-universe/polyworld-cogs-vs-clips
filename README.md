@@ -57,6 +57,9 @@ The current map geometry stays fixed.
 - Click Control to take over the selected Cog. Use WASD or arrow keys.
 - Move into stations to gather, deposit, equip, obtain hearts, or capture.
 - Space pauses and the period key advances one tick.
+- The HUD scales automatically for embedded replays. Ctrl/Cmd +/− changes its
+  scale, Ctrl/Cmd 0 restores automatic sizing, and F11 toggles fullscreen.
+  Manual scale preferences persist; changing UI scale does not change camera zoom.
 - Save replay writes a file on native and downloads it in the browser.
 - Watch tape switches the current recording to read-only playback.
 - Click the timeline to seek in playback. Drop a replay onto the client to load it.

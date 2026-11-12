@@ -23,6 +23,6 @@ export async function replayMode(url) {
   const game = decode.decode(bytes.subarray(start, start + size));
   const version = header.getUint16(fixed + 2, true);
   if (game === 'four_score' && version === 3) return 'fourscore';
-  if (game === 'cogs_vs_clips' && version === 4) return 'cooperative';
+  if (game === 'cogs_vs_clips' && version === 5) return 'cooperative';
   throw new Error(`Unsupported Polyworld replay: ${game} version ${version}`);
 }

@@ -2,6 +2,8 @@
 ## Build with -d:cooperative -d:headless. Compare stdout between native and WASM.
 import cvc/[sims, replays, bots]
 
+const OriginalMap = staticRead("../../data/maps/machina1.txt")
+
 var previousTiles: array[TileCount, Tile]
 for mapSeed in [20261110'i32, 20261111'i32, 20261112'i32]:
   let session = newSession(42, mapSeed)
@@ -11,6 +13,23 @@ for mapSeed in [20261110'i32, 20261111'i32, 20261112'i32]:
   if mapSeed > 20261110:
     doAssert session.world.tiles != previousTiles
   previousTiles = session.world.tiles
+  # A playable replay must preserve the MettaGrid compound, including its gates.
+  let hub = Red.home
+  doAssert hub == tileAt(43, 43)
+  for dy in -13'i32 .. 13:
+    for dx in -13'i32 .. 13:
+      let wall = OriginalMap[(43 + dy) * (Width + 1) + 43 + dx] == '#'
+      doAssert session.world.tiles[tileAt(hub.x + dx, hub.y + dy)].wall == wall
+  for role in [Miner, Aligner, Scrambler, Scout]:
+    let station = session.world.tiles[Red.gearTile(role)].station
+    doAssert station >= 0 and session.world.stations[station].role == role
+  var edgeDepths: set[uint8]
+  for x in 10'i32 ..< Width.int32 - 10:
+    var depth = 0'i32
+    while depth < 9 and session.world.tiles[tileAt(x, depth)].wall:
+      inc depth
+    edgeDepths.incl(uint8(depth))
+  doAssert edgeDepths.len >= 3, "asteroid edge collapsed to a straight border"
   # Walk the complete generated arena: every spawn and station must be accessible.
   var reachable: array[TileCount, bool]
   var queue = @[session.world.cogs[0].tile]

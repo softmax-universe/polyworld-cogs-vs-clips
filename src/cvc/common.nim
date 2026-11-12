@@ -21,7 +21,7 @@ const
   AlignRadius* = 15'i32
   HubAlignRadius* = 25'i32
   ViewRadius* = 6'i32
-  GameVersion* = (when defined(cooperative): 4'u16 else: 3'u16)
+  GameVersion* = (when defined(cooperative): 5'u16 else: 3'u16)
 
 type
   CvcError* = object of CatchableError
@@ -78,7 +78,7 @@ when defined(cooperative):
   const
     Teams* = [Red]
     Factions* = [Red, Blue]
-    Hubs* = [44 + 44 * Width]
+    Hubs* = [43 + 43 * Width]
     ClipsStart* = 100'i32
     ClipsPeriod* = 200'i32
 else:
@@ -180,17 +180,9 @@ proc addStation*(world: var World, station: Station) =
 proc gearTile*(team: Owner, role: Role): int32 =
   ## Returns the known compound layout shared by map generation and the baseline.
   let hub = team.home
-  when defined(cooperative):
-    case role
-    of Miner: tileAt(hub.x - 7, hub.y)
-    of Aligner: tileAt(hub.x, hub.y - 7)
-    of Scrambler: tileAt(hub.x + 7, hub.y)
-    of Scout: tileAt(hub.x, hub.y + 7)
-    of Ungeared: hub
-  else:
-    case role
-    of Miner: tileAt(hub.x + 1, hub.y + 4)
-    of Aligner: tileAt(hub.x - 3, hub.y + 4)
-    of Scrambler: tileAt(hub.x - 1, hub.y + 4)
-    of Scout: tileAt(hub.x + 3, hub.y + 4)
-    of Ungeared: hub
+  case role
+  of Miner: tileAt(hub.x + 1, hub.y + 4)
+  of Aligner: tileAt(hub.x - 3, hub.y + 4)
+  of Scrambler: tileAt(hub.x - 1, hub.y + 4)
+  of Scout: tileAt(hub.x + 3, hub.y + 4)
+  of Ungeared: hub

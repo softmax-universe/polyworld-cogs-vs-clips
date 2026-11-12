@@ -1,6 +1,6 @@
 import
   std/[monotimes, times, strutils, math],
-  silky, vmath, chroma, pixie, polyworld/configs,
+  silky, vmath, chroma, pixie, polyworld/[configs, chrome, menus, displays],
   sims, replays, bots, renders, colors, profiles, timings, scrubs, motions, bars, plans, names, directors
 
 when defined(emscripten):
@@ -33,6 +33,7 @@ type
     policies: Bots
     window: Window
     sk: Silky
+    preferences: Preferences
     paused: bool
     live: bool
     rate: float64
@@ -122,7 +123,7 @@ proc image(client: Client, name: string, position, size: Vec2,
 
 proc viewport(client: Client): Vec2 =
   ## Uses the entire window for the world beneath the themed HUD.
-  client.size
+  client.window.size.vec2
 
 proc step(client: Client) {.measure.} =
   ## Advances one lockstep frame, optionally replacing one policy action.
@@ -250,14 +251,14 @@ proc drawMap(client: Client, mini = false) =
   ## Reads current simulation state through the original GPU render passes.
   let
     size = client.size
-    area = if mini: vec4(30, size.y - 390, 300, 300)
-      else: vec4(0, 0, size.x, size.y)
+    area = if mini: vec4(30, size.y - 390, 300, 300) * client.sk.uiScale
+      else: vec4(0, 0, client.viewport.x, client.viewport.y)
     fraction = if client.paused: 1'f
       else: float32(clamp(client.accumulator * TickRate, 0.0, 1.0))
   client.renderer.drawWorld(client.session.world, client.previous,
     fraction, client.selected, client.inspected, client.window.size,
     area, if mini: vec2((Width.float32 - 1) / 2) else: client.center,
-    if mini: 300'f / (Width + 10).float32 else: client.zoom,
+    if mini: 300'f * client.sk.uiScale / (Width + 10).float32 else: client.zoom,
     mini or client.miniature, client.grid and not mini,
     client.vision, client.fog, client.rate.float32,
     if mini: @[] else: client.preview,
@@ -550,11 +551,11 @@ proc input(client: Client) =
     if window.buttonDown[MouseRight]:
       client.director.enabled = false
       client.center -= window.mouseDelta.vec2 /
-        (client.zoom * client.sk.uiScale)
+        client.zoom
       client.follow = false
     if window.buttonPressed[MouseLeft]:
       client.director.enabled = false
-      let position = (mouse - area / 2) /
+      let position = (window.mousePos.vec2 - area / 2) /
         client.zoom + client.center
       let tile = tileAt(int32(floor(position.x)), int32(floor(position.y)))
       if client.takeover and client.selected >= 0 and tile >= 0:
@@ -586,7 +587,7 @@ proc updatePreview(client: Client) =
     return
   let
     world = client.session.world
-    position = (client.mouse() - client.viewport() / 2) /
+    position = (client.window.mousePos.vec2 - client.viewport() / 2) /
       client.zoom + client.center
     target = if client.overHud(): -1'i32
       else: tileAt(int32(floor(position.x)), int32(floor(position.y)))
@@ -618,7 +619,7 @@ proc renderFrame(client: Client) {.measure.} =
     now = getMonoTime()
     elapsed = min(0.1, (now - client.lastTime).inMicroseconds.float / 1_000_000)
   client.lastTime = now
-  client.sk.uiScale = 1
+  client.sk.uiScale = gameUiScale(client.window)
   client.hint = ""
   try:
     client.input()
@@ -670,18 +671,18 @@ proc renderFrame(client: Client) {.measure.} =
       client.renderer.drawProfile(client.window.size,
         vec2((client.size.x - 623) / 2 + 424, client.size.y - 341),
         client.session.world.cogs[client.selected].role,
-        client.session.world.cogs[client.selected].team)
+        client.session.world.cogs[client.selected].team, client.sk.uiScale)
     elif client.inspected >= 0:
       client.renderer.drawStationProfile(client.window.size,
         vec2((client.size.x - 623) / 2 + 424, client.size.y - 341),
-        client.session.world.stations[client.inspected])
+        client.session.world.stations[client.inspected], client.sk.uiScale)
     client.drawMap(true)
     client.sk.beginUi(client.window, client.window.size)
     let
       ratio = 300'f / (Width + 10).float32
       origin = vec2(180, client.size.y - 240) +
         (client.center - vec2((Width.float32 - 1) / 2)) * ratio
-      extent = client.size / client.zoom * ratio
+      extent = client.viewport / client.zoom * ratio
       low = max(origin - extent / 2, vec2(30, client.size.y - 390))
       high = min(origin + extent / 2, vec2(330, client.size.y - 90))
     if high.x > low.x and high.y > low.y:
@@ -724,6 +725,7 @@ proc runClient*(session: Session, sources: array[CogCount, string],
     rate: speed.float64,
     window: window,
     sk: newSilky(window, "data/atlas.png"),
+    preferences: readPreferences("Cogs vs Clips"),
     center: vec2(29, 29),
     zoom: 26,
     selected: -1,
@@ -731,7 +733,18 @@ proc runClient*(session: Session, sources: array[CogCount, string],
     lastTime: getMonoTime(),
     recordPath: recordPath
   )
-  client.sk.uiScale = 1
+  chrome.uiScaleMode = client.preferences.uiScaleMode
+  chrome.uiScalePercent = client.preferences.uiScalePercent
+  client.sk.uiScale = gameUiScale(client.window)
+  window.onButtonPress = proc(button: Button) =
+    if window.scaleModifier and button == Key0:
+      client.preferences.uiScaleMode = AutoUiScale
+      chrome.uiScaleMode = AutoUiScale
+      client.preferences.savePreferences("Cogs vs Clips")
+    elif window.scaleKey(button, client.preferences, client.sk.uiScale, "Cogs vs Clips"):
+      discard
+    elif button == KeyF11:
+      window.setFullscreen(not window.isFullscreen)
   client.renderer = newRenderer(client.sk, session.world)
   client.director.observe(session.world)
   if session.playback:
