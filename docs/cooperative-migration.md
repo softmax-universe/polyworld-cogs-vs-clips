@@ -12,7 +12,13 @@ The disabled [settings](../coworld/cooperative-league.settings.json) contain no 
 - FourScore remains a separate 32-seat, four-team build with its fixed map.
 
 The cooperative generator produces an 88×88 arena with a central compound, four Clips roots,
-junctions, resources, and connected corridors. Clips start expanding at tick 100 and repeat every 200 ticks.
+junctions, resources, and connected corridors. Gameplay version 5 restores the original
+21×21 compound at (43,43): four five-wide gates, a three-tile clear apron,
+four corner extractors, the southern gear row, and cardinal spawn pads.
+Seeded triangular edge cuts follow MettaGrid's AsteroidMask dimensions. Outer
+buildings and station placements remain the independent Polyworld generator.
+Previously published Coworlds retain their immutable version-4 replay viewers.
+Clips start expanding at tick 100 and repeat every 200 ticks.
 This is a Polyworld adaptation, not the original Python map generator or exact MettaGrid simulation parity.
 Qualification must assess the resulting gameplay before moving the official league.
 

@@ -304,13 +304,14 @@ proc drawWorld*(renderer: Renderer, world: World,
   glDisable(GL_SCISSOR_TEST)
 
 proc drawProfile*(renderer: Renderer, canvas: IVec2,
-    position: Vec2, role: Role, team: Owner) =
+    position: Vec2, role: Role, team: Owner, uiScale: float32) =
   ## Draws the selected portrait with the original selective tint shader.
   let
     name = "profiles/" & Roles[ord(role)]
     projection = ortho(0'f, canvas.x.float32, canvas.y.float32, 0'f, -1'f, 1'f)
     size = renderer.px.spriteSize(name).vec2
-    matrix = projection * translate(vec3(position.x, position.y, 0))
+    matrix = projection * scale(vec3(uiScale, uiScale, 1)) *
+      translate(vec3(position.x, position.y, 0))
   glEnable(GL_BLEND)
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
   renderer.px.drawSprite(name, (size / 2).ivec2,
@@ -318,7 +319,7 @@ proc drawProfile*(renderer: Renderer, canvas: IVec2,
   renderer.px.flush(matrix)
 
 proc drawStationProfile*(renderer: Renderer, canvas: IVec2,
-    position: Vec2, station: Station) =
+    position: Vec2, station: Station, uiScale: float32) =
   ## Draws the original building portrait when that asset exists.
   let
     key = if station.kind == Junction: "junction" else: station.stationSprite()
@@ -328,7 +329,8 @@ proc drawStationProfile*(renderer: Renderer, canvas: IVec2,
   let
     projection = ortho(0'f, canvas.x.float32, canvas.y.float32, 0'f, -1'f, 1'f)
     size = renderer.px.spriteSize(name).vec2
-    matrix = projection * translate(vec3(position.x, position.y, 0))
+    matrix = projection * scale(vec3(uiScale, uiScale, 1)) *
+      translate(vec3(position.x, position.y, 0))
     mask = if name & ".mask" in renderer.px: name & ".mask" else: ""
   renderer.px.drawSprite(name, (size / 2).ivec2,
     if mask.len > 0: getTeamColor(ord(station.owner))
