@@ -11,6 +11,7 @@ const
 type ContainerPlayers* = object
   remote: array[CogCount, bool]
   view: ContainerView
+  replyWaitNs, maximumReplyWaitNs: array[CogCount, int64]
 
 proc connectPlayers*(): ContainerPlayers =
   ## Preserves the published wire exchange while declaring reconstructed inputs.
@@ -52,6 +53,7 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
   ## Requests one action per remote seat against the same frozen pre-tick state.
   var remaining = 0
   var pending: array[CogCount, bool]
+  var sentAt: array[CogCount, MonoTime]
   var scores: array[CogCount, float64]
   for slot, cog in world.cogs:
     scores[slot] = world.scores[cog.team].float64 / MaxTicks.float64
@@ -61,6 +63,7 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
     pending[slot] = true
     inc remaining
     let observation = players.view.observe(world, slot)
+    sentAt[slot] = getMonoTime()
     sendPlayer(slot, $(%*{
       "type": "observation", "protocol": Protocol, "mission": Mission,
       "slot": slot, "step": world.tick, "observation": observation,
@@ -75,6 +78,8 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
     if event.kind == PlayerTimeout:
       for slot, waiting in pending:
         if waiting:
+          stderr.writeLine $(%*{"event": "player_action_timeout", "slot": slot,
+            "step": world.tick, "reply_wait_ms": (getMonoTime() - sentAt[slot]).inMilliseconds})
           rejectPlayer(slot, "Player action deadline exceeded")
     if event.kind != PlayerMessage:
       rejectPlayer(event.slot, "Player disconnected or sent unsolicited traffic")
@@ -125,6 +130,14 @@ proc decide*(players: var ContainerPlayers, world: World, actions: var Actions) 
     if index notin 0 .. 4:
       rejectPlayer(event.slot, "Invalid movement action")
     actions[event.slot] = LegacyToAction[index]
+    let elapsed = (event.receivedAt - sentAt[event.slot]).inNanoseconds
+    players.replyWaitNs[event.slot] += elapsed
+    players.maximumReplyWaitNs[event.slot] = max(players.maximumReplyWaitNs[event.slot], elapsed)
+    if (world.tick + 1) mod 1000 == 0:
+      stderr.writeLine $(%*{"event": "player_timing", "slot": event.slot,
+        "step": world.tick, "actions": world.tick + 1,
+        "reply_wait_ms": players.replyWaitNs[event.slot].float64 / 1_000_000.0,
+        "maximum_reply_wait_ms": players.maximumReplyWaitNs[event.slot].float64 / 1_000_000.0})
     completePlayerReply(event.slot)
     pending[event.slot] = false
     dec remaining

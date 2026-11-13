@@ -271,6 +271,18 @@ async def run_case(
                     assert not (directory / "results.json").exists()
                 else:
                     assert result["ticks"] == 10000 and len(result["scores"]) == SEATS
+                    timings = [
+                        json.loads(line)
+                        for line in (directory / "game.log").read_text().splitlines()
+                        if line.startswith('{"event":"player_timing"')
+                    ]
+                    assert {
+                        row["slot"] for row in timings if row["actions"] == 10000
+                    } == remote
+                    assert all(
+                        0 <= row["maximum_reply_wait_ms"] <= row["reply_wait_ms"]
+                        for row in timings
+                    )
                     for first in range(0, SEATS, 8):
                         assert len(set(result["scores"][first : first + 8])) == 1
                     replay_bytes = (directory / "episode.replay").read_bytes()
