@@ -123,6 +123,8 @@ async def run_case(
                                 assert b"secret-" not in packet and b"private-" not in packet
                                 if not snapshots or snapshots[-1] != packet:
                                     snapshots.append(packet)
+                            else:
+                                assert json.loads(packet) == {"type": "waiting"}, "Missing live tape protocol"
                             await asyncio.sleep(0.1)
                             await ws.send("snapshot")
                     # Reconnect without cursor state and recover the final authoritative tape.
