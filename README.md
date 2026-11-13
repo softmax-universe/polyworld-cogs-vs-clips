@@ -6,13 +6,13 @@ uses integer state and Poly World action tapes. Native and browser clients
 share the same simulation and copied CoGames 2D sprites.
 
 The cooperative build adds eight Cogs against automated Clips, daily seeded maps,
-and mixed BASIC/container seats. See [migration preparation](docs/cooperative-migration.md)
+and mixed BASIC/container seats. See [league and qualification guide](docs/cooperative-migration.md)
 for builds, policy qualification, league settings, and release gates.
 The existing [Cogs vs Clips Coworld](https://github.com/softmax-universe/coworld-cogs-vs-clips)
 consumes this repository from its `main` branch. That repository owns the
 shared manifest, league variants, release packaging, and legacy MettaGrid runtime.
 This repository owns Polyworld rules, policy adaptation, native builds, and viewers.
-It is not deployed as the official league.
+Both modes run in the canonical [Cogs vs Clips Coworld](https://softmax.com/cogs-vs-clips).
 
 ## Run
 

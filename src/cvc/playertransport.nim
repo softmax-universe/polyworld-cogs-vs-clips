@@ -11,6 +11,7 @@ type
     kind*: PlayerEventKind
     slot*: int
     data*: string
+    receivedAt*: MonoTime
 
 var
   playerTokens: seq[string]
@@ -59,7 +60,7 @@ proc handlePlayerEvent*(socket: WebSocket, event: WebSocketEvent, message: Messa
       if not occupied[slot] or sockets[slot] != socket:
         continue
       result = true
-      var incoming = PlayerEvent(slot: slot)
+      var incoming = PlayerEvent(slot: slot, receivedAt: getMonoTime())
       case event
       of OpenEvent:
         incoming.kind = PlayerConnected
