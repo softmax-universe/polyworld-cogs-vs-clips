@@ -8,17 +8,22 @@
 <style>
 html,body{margin:0;width:100%;height:100%;background:#0c141a;color:#dfeee8;font:14px system-ui;overflow:hidden}
 canvas{display:block;width:100%;height:100%;outline:none}
+#live-status{position:absolute;top:8px;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:6px;background:#0c141ae6;pointer-events:none}
 #loading{position:absolute;inset:0;display:grid;place-items:center;background:#0c141a;pointer-events:none}
 </style>
 </head>
 <body>
 <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+<output id="live-status" hidden aria-live="polite"></output>
 <div id="loading">Loading FourScore...</div>
 <script>
 const canvas=document.getElementById('canvas');
 canvas.width=innerWidth;canvas.height=innerHeight;
 const query=new URLSearchParams(location.search);
 const replayUrl=new URLSearchParams(location.hash.slice(1)).get('replay')||query.get('replay');
+const live=!replayUrl&&/\/client\/(global|player|replay)$/.test(location.pathname);
+const liveStatus=document.getElementById('live-status');
+let connected=false;
 const post=m=>{if(parent!==window)parent.postMessage({src:'coworld-replay',...m},'*')};
 let ready=false,failed=false;
 window.cvcReplayError=message=>{
@@ -27,7 +32,15 @@ window.cvcReplayError=message=>{
  document.getElementById('loading').style.display='grid';
  post({type:'error',message:String(message)});
 };
-window.cvcReplayFrame=()=>{
+window.cvcReplayFrame=(tick,available)=>{
+ canvas.dataset.tick=String(tick);
+ canvas.dataset.available=String(available);
+ if(live){
+  liveStatus.hidden=false;
+  liveStatus.textContent=(available===10000&&tick===available?'Complete':
+   !connected?'Reconnecting':tick<available?'Catching up':'Live')+' · Tick '+tick+' / '+available;
+ }
+
  if(ready||failed)return;
  ready=true;
  post({type:'phase',phase:'replay_parsed'});
@@ -38,12 +51,43 @@ window.cvcReplayFrame=()=>{
 post({type:'loading'});
 var Module={canvas,
  locateFile(path){return path+"?v=__BUILD_ID__"},
- arguments:replayUrl?['--replay','/match.replay']:['--seed',query.get('seed')||'1',...__MAP_ARGUMENTS__],
+ arguments:live?['--replay','/match.replay','--spectate']:replayUrl?['--replay','/match.replay']:['--seed',query.get('seed')||'1',...__MAP_ARGUMENTS__],
  print(message){console.log(message);if(String(message).startsWith('CVC:'))cvcReplayError(message)},
  printErr:console.error,
  onAbort:window.cvcReplayError,
  preRun:[function(){
   post({type:'phase',phase:'bundle_ready'});
+  if(live){
+   addRunDependency('live');
+   let started=false,retry=1000,timer;
+   const address=new URL(query.get('address')||'../global',location.href);
+   address.protocol=address.protocol==='https:'||address.protocol==='wss:'?'wss:':'ws:';
+   const connect=()=>{
+    const socket=new WebSocket(address);
+    socket.binaryType='arraybuffer';
+    socket.onopen=()=>{connected=true;retry=1000};
+    socket.onmessage=event=>{
+     clearTimeout(timer);
+     if(event.data instanceof ArrayBuffer){
+      FS.writeFile(started?'/live.replay':'/match.replay',new Uint8Array(event.data));
+      if(!started){started=true;removeRunDependency('live')}
+     }else{
+      const message=JSON.parse(event.data);
+      if(message.type!=='waiting'){cvcReplayError('Unsupported live stream');socket.close();return}
+     }
+     timer=setTimeout(()=>{if(socket.readyState===WebSocket.OPEN)socket.send('snapshot')},1000);
+    };
+    socket.onclose=()=>{
+     connected=false;clearTimeout(timer);
+     if(!started)document.getElementById('loading').textContent='Waiting for live game…';
+     if(!failed){timer=setTimeout(connect,retry);retry=Math.min(retry*2,10000)}
+    };
+    socket.onerror=()=>socket.close();
+    window.addEventListener('pagehide',()=>{clearTimeout(timer);socket.onclose=null;socket.close()},{once:true});
+   };
+   connect();
+   return;
+  }
   if(!replayUrl)return;
   addRunDependency('replay');
   (async()=>{

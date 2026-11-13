@@ -157,3 +157,14 @@ proc load*(path: string): Session =
     result = loadBytes(readFile(path))
   except IOError as error:
     fail("cannot read replay: " & error.msg)
+
+proc extendPlayback*(session: Session, incoming: Session) =
+  ## Accept only an append to the same immutable episode, preserving camera/time.
+  if not session.playback or session.tape.header != incoming.tape.header or
+    session.tape.config != incoming.tape.config or
+    incoming.tape.actions.len < session.tape.actions.len:
+      fail("live stream changed episode or moved backwards")
+  for i, frame in session.tape.actions:
+    if frame != incoming.tape.actions[i] or session.tape.hashes[i] != incoming.tape.hashes[i]:
+      fail("live stream changed an already published tick")
+  session.tape = incoming.tape

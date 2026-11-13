@@ -77,6 +77,7 @@ async def run_case(
         )
     )
     env = dict(os.environ, COGAME_PORT=str(port), COGAME_HOST="127.0.0.1")
+    env["CVC_VIEWER_DIR"] = str(ROOT / ("out/browser-cooperative" if COOPERATIVE else "out/browser"))
     for key, filename in [
         ("CONFIG", "config.json"),
         ("PLAYER_SEATS", "seats.json"),
@@ -112,6 +113,34 @@ async def run_case(
                     if ready.returncode == 0:
                         break
                     await asyncio.sleep(0.01)
+
+                async def spectator() -> list[bytes]:
+                    snapshots = []
+                    async with websockets.connect(f"ws://127.0.0.1:{port}/global", max_size=2**22) as ws:
+                        while not (directory / "results.json").exists():
+                            packet = await ws.recv()
+                            if isinstance(packet, bytes):
+                                assert b"secret-" not in packet and b"private-" not in packet
+                                if not snapshots or snapshots[-1] != packet:
+                                    snapshots.append(packet)
+                            else:
+                                assert json.loads(packet) == {"type": "waiting"}, "Missing live tape protocol"
+                            await asyncio.sleep(0.1)
+                            await ws.send("snapshot")
+                    # Reconnect without cursor state and recover the final authoritative tape.
+                    async with websockets.connect(f"ws://127.0.0.1:{port}/global", max_size=2**22) as ws:
+                        final = await ws.recv()
+                        assert final == (directory / "episode.replay").read_bytes()
+                    if remote:
+                        assert len(snapshots) >= 2, "spectator never saw the running game advance"
+                        partial = directory / "live.replay"
+                        partial.write_bytes(snapshots[1])
+                        played = await asyncio.to_thread(subprocess.check_output,
+                            [str(NATIVE_GAME), "--replay:" + str(partial)], text=True)
+                        assert "tick=0 " not in played and "tick=10000 " not in played
+                    return snapshots
+
+                watching = asyncio.create_task(spectator()) if not failure else None
 
                 async def player(slot: int) -> None:
                     url = (
@@ -229,6 +258,8 @@ async def run_case(
                     assert process.poll() is None, (directory / "game.log").read_text()
                     assert time.monotonic() < deadline
                     await asyncio.sleep(0.01)
+                if watching is not None:
+                    await watching
                 result = json.loads(marker.read_text())
                 statuses = json.loads((directory / "status.json").read_text())[
                     "players"
