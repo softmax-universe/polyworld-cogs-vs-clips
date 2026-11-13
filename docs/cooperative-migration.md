@@ -1,7 +1,9 @@
 # Cooperative league migration
 
-Status: implemented preparation, pending qualification and hosted certification. No production league has changed.
-The disabled [settings](../coworld/cooperative-league.settings.json) contain no division IDs and are not a cutover payload.
+The canonical [Cogs vs Clips](https://softmax.com/cogs-vs-clips) Coworld publishes both Polyworld modes.
+[Cooperative](https://softmax.com/cogs-vs-clips/cooperative) uses daily maps and team scores;
+[FourScore](https://softmax.com/cogs-vs-clips/fourscore) uses four teams on the fixed map.
+The [settings fixture](../coworld/cooperative-league.settings.json) is a disabled authoring example, not live configuration.
 
 ## Preserved league behavior
 
@@ -20,7 +22,7 @@ buildings and station placements remain the independent Polyworld generator.
 Previously published Coworlds retain their immutable version-4 replay viewers.
 Clips start expanding at tick 100 and repeat every 200 ticks.
 This is a Polyworld adaptation, not the original Python map generator or exact MettaGrid simulation parity.
-Qualification must assess the resulting gameplay before moving the official league.
+Policy qualification must assess the resulting gameplay; protocol compatibility alone does not establish strategic parity.
 
 ## Why the league needs different ratings
 
@@ -50,7 +52,7 @@ Simulation `seed` remains independent. The simulator never reads the clock.
 Cooperative hosted games require an explicit signed 32-bit `map_seed`.
 Replays carry that seed, a source-derived content hash, map fingerprint, actions, and per-tick hashes.
 The viewer rejects mismatched rules or maps. The manifest's dated map is a reproducible preview fixture;
-automatic daily variation requires deploying the companion planner change before enabling this league.
+the live platform planner supplies daily variation.
 
 ## Mixed policies and old containers
 
@@ -80,8 +82,8 @@ Keep a private migration inventory of policy versions, artifact references, envi
 Preserve those references during enrollment; do not copy secret values into a manifest or convert weights merely to enroll containers.
 Each imported policy remains unqualified until its actual image completes the new-engine suite.
 
-The existing reference-player Docker image completed a full match alongside seven BASIC players.
-That verifies the published wire exchange, not the behavior of imported champion policies.
+Release certification runs the reference Docker player alongside seven BASIC players.
+That verifies the published wire exchange; imported champions require their own qualification.
 For each imported policy, run all eight positions across multiple daily maps with frozen teammates and seeds.
 Record crashes, action distribution, score, runtime, and paired changes; reject incomplete suites.
 
@@ -131,28 +133,38 @@ private file logs, authentication, duplicate connections, stale replies, friendl
 The replay suite runs three full daily-map matches and checks map connectivity and seeking.
 Native and WebAssembly outputs matched for all 30,000 ticks. The previously published FourScore replay also retained its final hash and scores.
 
-## Release gates
+## Release and policy qualification
 
-1. Merge this game-local host and the Observatory daily-map planner, then update the shared Coworld's game-source pin.
-   The engine dependency uses unchanged Polyworld main; no shared transport PR is required.
-2. Review the adapted map distribution, Clips behavior, and 74-feature observation semantics with the game owners.
-3. Qualify all imported policy images; retain per-policy failures instead of claiming blanket compatibility.
-4. Build the cooperative image and viewer; validate the final manifest and certify real all-file, all-container, and mixed rosters.
-5. Run a real local Observatory round through Postgres, object storage, Kubernetes, and settlement, including worker restart.
-6. Run a fresh hosted mixed episode before enabling a new division and score season. Obtain owner approval for the official switch.
+The shared Coworld repository owns release packaging and league-facing documentation.
+Its build follows this repository and Polyworld `main`, resolves revisions once, and
+records exact source hashes with immutable images and replay viewers.
 
-The current preparation has native/browser and cached-Docker evidence. Full local hosted-stack certification is outstanding.
-No source league is archived, resumed, repointed, or enrolled by these files.
+For each release:
 
-## Prior lab-container evidence
+1. Run the native/browser replay suites and real hosted mixed-seat system tests.
+2. Certify the shared Coworld and exercise both variants at the full 10,000 ticks.
+3. Qualify changed container policies across daily maps or all four FourScore corners.
+4. Verify completed hosted rounds and decode their replays before retiring a predecessor.
 
-[The retained verification record](docker-verification.json) describes the earlier non-canonical `0.1.6rc2` candidate,
-not a certification of this consolidated source. Its immutable source and image hashes remain unchanged.
-Doug's v5 and Hananel's v11 uploads completed 32 container runs of 10,000 observations across two FourScore matches,
-alongside BASIC and neural file policies. All 16 Hananel runs reported zero step gaps.
-Those runs established the named observation vocabulary and protocol fixes carried into this host.
-They did not qualify cooperative maps, all imported policies, or MettaGrid-equivalent rankings.
+Keep old league results and immutable replay viewers. New engines and formats need
+separate standings; do not merge historical MettaGrid scores into Polyworld rankings.
+Record qualification evidence outside the source tree rather than committing workflow histories.
 
-Before release, rebuild and certify the consolidated source and repeat unchanged lab-image matches in both modes.
-Release builds in `coworld-cogs-vs-clips` follow upstream `main`; retain separate variant standings.
-The closed PW #2 and Polyworld #115 branches preserve the earlier implementation and evidence.
+## Container runtime diagnostics
+
+Use explicit CPU requests and limits, with inference thread pools sized to the allocation.
+The shared [reference player and upload guide](https://github.com/softmax-universe/coworld-cogs-vs-clips/blob/main/coworld/game/docs/player_protocol_spec.md#cpu-player-defaults)
+uses one CPU and one inference thread. Measure multiple concurrent containers, not
+only an isolated process. Models and their original ownership remain unchanged when
+publishing a separately attributed runtime repair.
+
+Every 1,000 actions, the game emits one `player_timing` JSON record per remote seat:
+`slot`, `step`, `actions`, cumulative `reply_wait_ms`, and `maximum_reply_wait_ms`.
+The interval starts before sending the observation and ends when transport receives
+the valid reply. It includes network and worker scheduling delays, but excludes game
+event-queue delay. It is not CPU time. No private payloads are logged.
+
+Use the episode roster to map slots to policies. A 30-second action deadline emits
+`player_action_timeout` and an attributed player failure. Timing telemetry does not
+change deadlines, rankings, or game rules; cumulative slow responses can still exhaust
+the platform's episode deadline.
