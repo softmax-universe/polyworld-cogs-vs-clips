@@ -168,3 +168,10 @@ cooperative`, or `fourscore`). `CVC_VIEWER_DIR` selects that build directory whe
 launching the native host; Docker includes the matching assets at `/app/viewer`.
 Run `python tests/system/cooperative_hosted.py` (also `--fourscore`) to verify
 mixed player execution, live progress, reconnect, and final replay equality.
+
+Combined replay bundles retain the exact Cooperative v4 viewer shipped in Coworld
+0.2.49. Its action tapes encode different rules from v5 and must use their original
+simulation. `coworld/retained-viewers.json` pins the source revision, published
+bundle, and asset checksums; packaging downloads and verifies those immutable
+assets. The header router selects the matching reader. Future rules changes must
+retain readers for published tapes before replacing the current viewer.

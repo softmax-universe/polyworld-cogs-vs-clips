@@ -1,0 +1,13 @@
+{
+  "cooperative-v4": {
+    "source_revision": "7b143c056d78f86614f761a0b8958b55388b0da9",
+    "bundle_hash": "sha256:6dca99f134c0092b6dbc64912b0e81094b3ae23018846ae8fbfa32438cafbe06",
+    "base_url": "https://softmax-api.softmax.com/v2/coworlds/replays/static/cow_5c79212c-a9a4-4507-8b62-7b1fd625eea5/sha256%3A922859eb3e7dcb9e9b898a94e9c48140be2f30bae60f2e1608f63b6b720b9031/polyworld/cooperative/",
+    "files": {
+      "cvc.data": "e8300eda525e8450397570cfc24d6659e7a613c583738162647211f34ea4a013",
+      "cvc.js": "cea5a6714e73ffc031afe98b380780319e1f88513b208d4fc2375dc26249cd89",
+      "cvc.wasm": "d7c91097a96f5bd86a0815060dde233b3c0ff7f32dabf5ffaeff203cd2f8a3f1",
+      "index.html": "5e1ce10af6ac6df12be4a121240a09b9e775f04e610a1edd6d22924ae0bb0bde"
+    }
+  }
+}
