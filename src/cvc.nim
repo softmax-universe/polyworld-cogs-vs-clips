@@ -63,7 +63,7 @@ proc main() =
       session.save(recordPath)
   else:
     when not defined(headless):
-      runClient(session, sources, recordPath, settings.paused, settings.speed)
+      runClient(session, sources, recordPath, settings.paused, settings.speed, settings.spectate)
 
 try:
   when defined(coworld):

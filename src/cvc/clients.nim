@@ -1,20 +1,20 @@
 import
-  std/[monotimes, times, strutils, math],
+  std/[monotimes, times, strutils, math, os],
   silky, vmath, chroma, pixie, polyworld/[configs, chrome, menus, displays],
   sims, replays, bots, renders, colors, profiles, timings, scrubs, motions, bars, plans, names, directors
 
 when defined(emscripten):
   {.emit: """
 #include <emscripten.h>
-EM_JS(void, cvc_notify_frame, (), {
-  if (window.cvcReplayFrame) window.cvcReplayFrame();
+EM_JS(void, cvc_notify_frame, (int tick, int available), {
+  if (window.cvcReplayFrame) window.cvcReplayFrame(tick, available);
 });
 EM_JS(void, cvc_notify_error, (), {
   if (window.cvcReplayError)
     window.cvcReplayError('Replay simulation failed; see console');
 });
 """.}
-  proc notifyBrowserFrame() {.importc: "cvc_notify_frame", nodecl.}
+  proc notifyBrowserFrame(tick, available: cint) {.importc: "cvc_notify_frame", nodecl.}
     ## Signals a committed frame without evaluating JavaScript strings.
   proc notifyBrowserError() {.importc: "cvc_notify_error", nodecl.}
     ## Reports a presentation failure through the static browser callback.
@@ -36,6 +36,7 @@ type
     preferences: Preferences
     paused: bool
     live: bool
+    spectating: bool
     rate: float64
     selected: int
     inspected: int
@@ -622,6 +623,10 @@ proc renderFrame(client: Client) {.measure.} =
   client.sk.uiScale = gameUiScale(client.window)
   client.hint = ""
   try:
+    when defined(emscripten):
+      if client.spectating and fileExists("/live.replay"):
+        client.session.extendPlayback(load("/live.replay"))
+        removeFile("/live.replay")
     client.input()
     if client.scrubs.points.len > 0 and not client.scrubs.complete():
       client.scrubs.extendScrubs()
@@ -629,15 +634,17 @@ proc renderFrame(client: Client) {.measure.} =
       client.scrubs.available(client.pendingTarget, client.pendingSnap):
         client.seek(client.pendingTarget, client.pendingSnap)
     if not client.paused:
-      let steps =
+      var steps =
         when CvcTracePath.len > 0:
           1
         else:
           frameTicks(client.accumulator, elapsed, client.rate)
+      if client.spectating:
+        steps = min(200, int(client.session.tape.hashes.len) - int(client.session.world.tick))
       for i in 0 ..< steps:
         client.step()
       if client.session.world.tick >= MaxTicks or
-        (not client.live and client.session.playback and client.session.world.tick >=
+        (not client.live and not client.spectating and client.session.playback and client.session.world.tick >=
         int32(client.session.tape.hashes.len)):
           client.paused = true
           if client.repeating and client.session.tape.hashes.len > 0:
@@ -701,7 +708,7 @@ proc renderFrame(client: Client) {.measure.} =
     client.sk.endUi()
     client.window.swapBuffers()
     when defined(emscripten):
-      notifyBrowserFrame()
+      notifyBrowserFrame(cint(client.session.world.tick), cint(client.session.tape.hashes.len))
   except CvcError as error:
     client.paused = true
     client.message = error.msg
@@ -710,7 +717,7 @@ proc renderFrame(client: Client) {.measure.} =
       notifyBrowserError()
 
 proc runClient*(session: Session, sources: array[CogCount, string],
-    recordPath: string, paused = false, speed = 1'i32) =
+    recordPath: string, paused = false, speed = 1'i32, spectating = false) =
   ## Opens the native or browser client with identical simulation code.
   let window = newWindow((when defined(cooperative): "Cooperative Cogs vs Clips" else: "FourScore"), ivec2(1440, 960))
   window.makeContextCurrent()
@@ -718,9 +725,10 @@ proc runClient*(session: Session, sources: array[CogCount, string],
   let client = Client(
     session: session,
     live: not session.playback,
+    spectating: spectating,
     policies: newBots(sources),
     paused: paused,
-    repeating: true,
+    repeating: not spectating,
     director: Director(enabled: true, target: -1),
     rate: speed.float64,
     window: window,
@@ -782,6 +790,7 @@ proc runClient*(session: Session, sources: array[CogCount, string],
       client.session = loadBytes(fileData)
       client.accumulator = 0
       client.live = false
+      client.spectating = false
       client.paused = true
       client.takeover = false
       client.orders = default(typeof(client.orders))

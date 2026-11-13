@@ -3,15 +3,13 @@ import
   std/[os, posix, strutils, times, uri],
   jsony, mummy,
   bassy,
-  polyworld/[annotations, cli, policies], playertransport
+  polyworld/[annotations, cli, policies], playertransport, spectators
 
 export playertransport
 
 const
   PlayerLogLimit* = 10 * 1024 * 1024
   Truncation = "\n[Player log truncated at 10 MiB.]\n"
-  GlobalHtml = "<!doctype html><title>Polyworld</title>" &
-    "<p>This game runs file players. Open the completed episode replay.</p>"
 
 type
   CoworldError* = object of CatchableError
@@ -258,33 +256,18 @@ proc requestHandler(request: Request) {.gcsafe.} =
   case request.path
   of "/healthz":
     request.respond(200, body = "ok")
-  of "/client/global", "/client/player", "/client/replay":
-    request.respond(
-      200,
-      @[ ("Content-Type", "text/html; charset=utf-8") ],
-      GlobalHtml
-    )
-  of "/global":
-    discard request.upgradeToWebSocket()
   else:
-    request.respond(501, body = "File players and static replays only.")
+    if not handleSpectatorRequest(request):
+      request.respond(404, body = "Not found")
 
 proc websocketHandler(
     socket: WebSocket,
     event: WebSocketEvent,
     message: Message
 ) {.gcsafe.} =
-  ## Routes authenticated player events; global viewers receive status and Ping/Pong.
-  if handlePlayerEvent(socket, event, message):
-    return
-  case event
-  of OpenEvent:
-    socket.send("{\"type\":\"status\",\"player_runtime\":\"game-hosted\"}")
-  of MessageEvent:
-    if message.kind == Ping:
-      socket.send(message.data, Pong)
-  of ErrorEvent, CloseEvent:
-    discard
+  ## Keep authenticated players separate from read-only spectators.
+  if not handlePlayerEvent(socket, event, message):
+    handleSpectatorEvent(socket, event, message)
 
 proc serve(address: ServerAddress) {.thread.} =
   ## Runs the contract server independently of deterministic simulation ticks.
@@ -369,6 +352,7 @@ proc coworldOptions*(requiredSlots: int, mixedPlayers = false): GameOptions =
     raise newException(CoworldError, "COGAME_PORT must be an integer")
   if port < 1 or port > 65535:
     raise newException(CoworldError, "COGAME_PORT is out of range")
+  initSpectators()
   server = newServer(requestHandler, websocketHandler, workerThreads = 2, maxMessageLen = 64 * 1024)
   createThread(serverThread, serve, ServerAddress(
     server: server,

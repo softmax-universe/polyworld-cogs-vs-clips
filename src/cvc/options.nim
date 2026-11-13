@@ -9,7 +9,7 @@ type
     seed*, mapSeed*: int32
     recordPath*, replayPath*: string
     groups*: seq[BotGroup]
-    headless*, help*, paused*: bool
+    headless*, help*, paused*, spectate*: bool
     speed*: int32
 
 proc number(value, flag: string): int32 =
@@ -35,11 +35,13 @@ proc parseOptions*(arguments: seq[string]): Options =
       continue
     let separator = argument.find({':', '='})
     let flag = if separator >= 0: argument[0 ..< separator] else: argument
-    if flag in ["--headless", "--help"]:
+    if flag in ["--headless", "--help", "--spectate"]:
       if separator >= 0:
         fail(flag & " does not take a value")
       if flag == "--headless":
         result.headless = true
+      elif flag == "--spectate":
+        result.spectate = true
       else:
         result.help = true
       inc i
@@ -88,6 +90,8 @@ proc parseOptions*(arguments: seq[string]): Options =
     inc i
   if result.help:
     return
+  if result.spectate and result.replayPath.len == 0:
+    fail("--spectate requires an initial replay snapshot")
   if result.replayPath.len > 0 and result.groups.len > 0:
     fail("--replay cannot be combined with --bots")
   if result.groups.len > 0 and result.groups.botCount != CogCount:

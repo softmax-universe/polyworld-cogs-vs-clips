@@ -1,6 +1,6 @@
 import
-  std/[json, os],
-  coworldhost,
+  std/[json, os, monotimes, times],
+  coworldhost, spectators,
   sims, replays, bots, containerplayers
 
 proc runHosted*() =
@@ -29,11 +29,17 @@ proc runHosted*() =
     session = newSession(options.seed, mapSeed)
     policies = newBots(sources, active)
   session.tape.config.players = coworldhost.config.players
+  publishSpectatorTape(session.replayBytes())
+  var published = getMonoTime()
   var remote = connectPlayers()
   while session.world.tick < MaxTicks:
     var actions = policies.decide(session.world)
     remote.decide(session.world, actions)
     session.advance(actions)
+    if (getMonoTime() - published).inMilliseconds >= 1000:
+      publishSpectatorTape(session.replayBytes())
+      published = getMonoTime()
+  publishSpectatorTape(session.replayBytes())
   remote.finish(session.world)
   session.save(options.recordPath)
   var scores: seq[int]

@@ -12,7 +12,7 @@ The existing [Cogs vs Clips Coworld](https://github.com/softmax-universe/coworld
 consumes this repository from its `main` branch. That repository owns the
 shared manifest, league variants, release packaging, and legacy MettaGrid runtime.
 This repository owns Polyworld rules, policy adaptation, native builds, and viewers.
-It is not deployed as the official league.
+
 
 ## Run
 
@@ -142,3 +142,28 @@ See [the fixed rules](docs/rules.md) and [asset provenance](docs/provenance.md).
 This is a standalone adaptation, not a drop-in MettaGrid replacement. Its compact
 map generator and deterministic resolution order define a new replay version.
 It does not reproduce original Python map seeds, policies, or replay files.
+
+## Live spectating
+
+Hosted Cooperative and FourScore games serve their matching WebAssembly viewer
+at `/client/global`. `/global` accepts read-only spectator WebSockets; the
+platform-provided `address` query parameter preserves proxy routing. Player
+sockets remain separately authenticated at `/player`.
+
+Spectators receive the ordinary replay envelope as a binary snapshot on connect
+and in response to `snapshot`. The game publishes at most once per second plus
+initial/final state. One bounded current tape is retained, so slow or disconnected
+viewers do not block the simulation or accumulate tick queues. Snapshots contain
+public match names and actions, never player tokens or private logs.
+
+The viewer verifies each appended tape against the same rules and hashes as
+completed replays. Late joins and reconnects recover from the current tape;
+pause/seek remains read-only, and Play catches up to the live edge. Waiting and
+reconnecting states preserve the last rendered game. Completed recordings keep
+their existing file format and ordinary replay controls.
+
+Local hosted checks require the matching browser build (`./tools/build_browser.sh
+cooperative`, or `fourscore`). `CVC_VIEWER_DIR` selects that build directory when
+launching the native host; Docker includes the matching assets at `/app/viewer`.
+Run `python tests/system/cooperative_hosted.py` (also `--fourscore`) to verify
+mixed player execution, live progress, reconnect, and final replay equality.
